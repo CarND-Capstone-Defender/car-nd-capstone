@@ -39,7 +39,7 @@ class TLDetector(object):
         self.config = yaml.load(config_string)
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
-        self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
+        #self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
@@ -79,12 +79,6 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-        holla = TrafficLightDetection()
-        holla.waypoint = 753
-        self.upcoming_traffic_light_injection.publish(holla)
-
-
-
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -107,8 +101,10 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+        if self.waypoints is None:
+            return
+
+        return -1
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
