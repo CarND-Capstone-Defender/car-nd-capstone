@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>tl_detector</name>
+  <name>tl_injector</name>
   <version>0.0.0</version>
-  <description>The traffic light detection package</description>
+  <description>The traffic light injector by keyboard</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
