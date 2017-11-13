@@ -71,7 +71,7 @@ class TLInjector(object):
 				state = moveBindings[key]
 
 				if state == -1:
-					print 'INFO: key x pressed - TLInjector is exiting...'
+					print 'INFO: key x pressed - TLInjector is exiting....'
 					sys.exit(0)
 
   			if self.pose is not None:
