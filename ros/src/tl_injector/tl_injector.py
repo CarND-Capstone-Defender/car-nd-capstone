@@ -5,7 +5,7 @@ from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import Lane
 
 import math
-
+import sys, traceback
 
 ######################################
 # how to run the TL injector ?
@@ -71,28 +71,30 @@ class TLInjector(object):
 				state = moveBindings[key]
 
 				if state == -1:
-					break
+					print 'INFO: key x pressed - TLInjector is exiting...'
+					sys.exit(0)
 
-				injectorMsg = TrafficLightDetection()
-				injectorMsg.waypoint = self.get_closest_waypoint(self.pose.pose)
-				injectorMsg.state = state
-				
-				if self.pose:
-					if state == 0:
-						color = 'RED'
-					elif state == 1:
-						color = 'YELLOW'
-					elif state == 2:
-						color = 'GREEN'
-					else: 
-						color = 'UNKNOWN'
-						injectorMsg.state = 3
+  			if self.pose is not None:
+					injectorMsg = TrafficLightDetection()
+					injectorMsg.waypoint = self.get_closest_waypoint(self.pose.pose)
+					injectorMsg.state = state
 					
-					#debugMsg = 'Injecting ' + color + ' traffic light at (x,y) = (' + str(self.pose.pose.position.x) + ',' + str(self.pose.pose.position.y) + ')'
-					debugMsg = 'Injecting ' + color + ' traffic light at waypoint = ' + str(injectorMsg.waypoint)
-					print debugMsg
-				
-				self.upcoming_traffic_light_injection.publish(injectorMsg)
+					if self.pose:
+						if state == 0:
+							color = 'RED'
+						elif state == 1:
+							color = 'YELLOW'
+						elif state == 2:
+							color = 'GREEN'
+						else: 
+							color = 'UNKNOWN'
+							injectorMsg.state = 3
+						
+						#debugMsg = 'Injecting ' + color + ' traffic light at (x,y) = (' + str(self.pose.pose.position.x) + ',' + str(self.pose.pose.position.y) + ')'
+						debugMsg = 'Injecting ' + color + ' traffic light at waypoint = ' + str(injectorMsg.waypoint)
+						print debugMsg
+					
+					self.upcoming_traffic_light_injection.publish(injectorMsg)
 
 	def pose_cb(self, msg):
 		self.pose = msg
