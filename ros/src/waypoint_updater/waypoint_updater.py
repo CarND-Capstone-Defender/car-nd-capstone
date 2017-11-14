@@ -35,19 +35,27 @@ class WaypointUpdater(object):
 
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
-
+        
         # TODO: Add other member variables you need below
-
-        rospy.spin()
-
+        #current position & base waypoint msgs variables
+        self.current_pos = None
+        self.base_way = None
+        
+        #rate is same as DBW node rospy rate
+        rate = rospy.Rate(50)
+        
+        while not rospy.is_shutdown():
+            self.do_update()
+            rate.sleep()
+        
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        #save msg of current position to it's variable
+        self.current_pos = msg
 
     def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
-
+        #save msg of base waypoints to it's variable
+        self.base_way = waypoints
+            
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
         pass
@@ -70,6 +78,32 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
 
+    #This function is used to loop over all the points and find the nearest one to the current point and return it's index
+    def check_closet_point(self, points, curr_point):
+        min_delta = 10000000
+        min_idx = 0
+        for i in range(len(points)):
+            p = points[i].pose.pose.position
+            c = curr_point.pose.position
+            delta = math.sqrt((p.x - c.x)**2 + (p.y - c.y)**2  + (p.z - c.z)**2)
+            if(delta < min_delta):
+                min_delta = delta
+                min_idx = i
+        return min_idx
+               
+    #This function is used to select number of base waypoints to be added to the final waypoint msg to be published
+    #Points are the nearest LOOKAHEAD_WPS points to the current position
+    def do_update(self):
+        if(self.base_way != None) and (self.current_pos != None):
+            self.final_way = Lane()
+            closest_idx = self.check_closet_point(self.base_way.waypoints, self.current_pos)
+            base_way_len = len(self.base_way.waypoints)
+            for i in range(closest_idx, (closest_idx + LOOKAHEAD_WPS)):
+                idx = i % base_way_len
+                self.final_way.waypoints.append(self.base_way.waypoints[idx])
+            
+            self.final_waypoints_pub.publish(self.final_way)
+            
 
 if __name__ == '__main__':
     try:

@@ -72,6 +72,9 @@ class DBWNode(object):
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
             #   self.publish(throttle, brake, steer)
+                
+            #Just fixed value to make the car move in straight line
+            #self.publish(1, 0, 0)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
