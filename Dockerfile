@@ -32,3 +32,17 @@ RUN mkdir /capstone
 VOLUME ["/capstone"]
 VOLUME ["/root/.ros/log/"]
 WORKDIR /capstone/ros
+
+# Setup kinetic Version in shell environment
+RUN echo "source /opt/ros/kinetic/setup.bash" >> /root/.bashrc
+RUN echo "export ROS_PACKAGE_PATH=/opt/ros/kinetic/share/:/capstone/ros/src/" >> /root/.bashrc
+
+# upgrade the pip and pillow packages
+# reason for pip was https://github.com/pdfminer/pdfminer.six/issues/27
+# reason for pillow was https://discussions.udacity.com/t/capstone-project-message-error-image-publisher/401756/11
+RUN pip install --upgrade pip
+RUN pip install --upgrade pillow
+
+# ensure that the dependencies are always up to date
+RUN rosdep update
+CMD ./initCapstone.sh ; /bin/bash
