@@ -22,7 +22,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 
 Build the docker container
 ```bash
-docker build . -t capstone
+sudo docker build . -t capstone
 ```
 
 Run the docker file
