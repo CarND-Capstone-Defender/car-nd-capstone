@@ -72,13 +72,13 @@ class DBWNode(object):
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
             #   self.publish(throttle, brake, steer)
-                
+
             #Just fixed value to make the car move in straight line
-            #tcmd = ThrottleCmd()
-            #tcmd.enable = True
-            #tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
-            #tcmd.pedal_cmd = 0.6
-            #self.throttle_pub.publish(tcmd)
+            tcmd = ThrottleCmd()
+            tcmd.enable = True
+            tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
+            tcmd.pedal_cmd = 0.6
+            self.throttle_pub.publish(tcmd)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
