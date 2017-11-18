@@ -120,10 +120,7 @@ class DBWNode(object):
 
 
     def dbw_enabled_callback(self, cb_msg):
-
-
-
-git        # Extract True/False message.
+        # Extract True/False message.
         self.dbw_enabled = cb_msg.data
 
     def current_vel_callback(self, cb_msg):
