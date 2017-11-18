@@ -74,7 +74,11 @@ class DBWNode(object):
             #   self.publish(throttle, brake, steer)
                 
             #Just fixed value to make the car move in straight line
-            #self.publish(1, 0, 0)
+            #tcmd = ThrottleCmd()
+            #tcmd.enable = True
+            #tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
+            #tcmd.pedal_cmd = 0.6
+            #self.throttle_pub.publish(tcmd)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
