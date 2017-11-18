@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="tl_injector" type="tl_injector.py" name="tl_injector" output="screen" cwd="node"/>
+</launch>
