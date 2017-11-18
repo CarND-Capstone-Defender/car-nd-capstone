@@ -53,10 +53,26 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
 
+        # Set the initial stage prior to recieving any messages.
+        self.dbw_enabled = False
+        self.latest_current_velocity_msg = None
+        self.latest_twist_msg=None
+
+
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
 
-        # TODO: Subscribe to all the topics you need to
+
+        # Messages arrive async, each callback updates this
+        # class with private copy of last update seen.
+
+        #Topic to receive target linear and angular velocities
+        rospy.Subscriber('/twist_cmd',TwistStamped,self.twist_cmd_callback)
+        # Subscribe to current velocity topic.
+        rospy.Subscriber('/current_velocity',TwistStamped, self.current_vel_callback)
+
+        #Messge that indicates if dbw is enabled or not.
+        rospy.Subscriber('/vehicle/dbw_enabled',Bool,self.dbw_enabled_callback)
 
         self.loop()
 
@@ -73,12 +89,15 @@ class DBWNode(object):
             # if <dbw is enabled>:
             #   self.publish(throttle, brake, steer)
 
+
             #Just fixed value to make the car move in straight line
             tcmd = ThrottleCmd()
             tcmd.enable = True
             tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
             tcmd.pedal_cmd = 0.6
-            self.throttle_pub.publish(tcmd)
+
+            if ( self.dbw_enabled is True ):
+                self.throttle_pub.publish(tcmd)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -98,6 +117,23 @@ class DBWNode(object):
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
+
+
+    def dbw_enabled_callback(self, cb_msg):
+
+
+
+git        # Extract True/False message.
+        self.dbw_enabled = cb_msg.data
+
+    def current_vel_callback(self, cb_msg):
+        self.latest_current_velocity_msg = cb_msg
+
+    def twist_cmd_callback(self,cb_msg):
+        self.latest_twist_msg = cb_msg
+
+
+
 
 
 if __name__ == '__main__':
