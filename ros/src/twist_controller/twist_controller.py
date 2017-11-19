@@ -1,9 +1,16 @@
 import rospy
 from yaw_controller import YawController
-
+from pid import PID
 
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
+
+# Tuned for simulator, unknown if representitve for Carla.
+VEL_PID_KP = 1.0
+VEL_PID_KI = 1.0
+VEL_PID_KD = 1.0
+
+
 
 
 class TwistController(object):
@@ -32,6 +39,7 @@ class TwistController(object):
                                   self.max_lat_accel,
                                   self.max_steer_angle)
 
+        self.throttle = PID(VEL_PID_KP,VEL_PID_KI,VEL_PID_KD,0.0,1.0)
 
     def control(self,
                 proposed_linear_vel,
