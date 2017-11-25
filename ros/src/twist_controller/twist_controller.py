@@ -8,15 +8,24 @@ ONE_MPH = 0.44704
 
 
 # Tuned for simulator, unknown if representitve for Carla.
-VEL_PID_KP = 1.0
-VEL_PID_KI = 0.001
+VEL_PID_KP = 0.8
+VEL_PID_KI = 0.0001
 VEL_PID_KD = 0.0000001
 # Trise = 2.2T , say 5sec 10-90% todo: include accel limit. https://en.wikipedia.org/wiki/RC_time_constant
-THROTTLE_LP_TAO =  5.0 / 2.2
+THROTTLE_LP_TAO =  2.0 / 2.2
 THROTTLE_LP_TS = 0.02 # Assuming 50 hz operation 1.0 / 50.0
+
+BRAKE_LP_TAO = 1.0/2.2
+BRAKE_LP_TS = 0.02 # Assuming 50 hz operation 1.0 / 50.0
+
+
 MAX_THROTTLE = 1.0 * 0.9
 THROTTLE_PID_LIMIT_MAX = 1.0 #float('inf')
 THROTTLE_PID_LIMIT_MIN = -1.0 #float('-inf')
+
+CURRENT_FUEL_LEVEL = 100  # Percent full
+
+MAX_brake_FORCE_RATIO = 1
 
 
 
@@ -39,6 +48,11 @@ class TwistController(object):
 
         self.min_speed = 0.0
 
+        self.current_vehicle_mass = self.vehicle_mass + (( CURRENT_FUEL_LEVEL / 100) * (self.fuel_capacity * GAS_DENSITY))
+        # @Kostas Oreopoulos - carnd slack commennt
+        self.max_brake_force = MAX_brake_FORCE_RATIO * self.vehicle_mass * self.decel_limit * self.wheel_radius
+
+
         # 1st implementation of steering is to use provided Yaw Controller.
         self.yaw = YawController( self.wheel_base,
                                   self.steer_ratio,
@@ -46,8 +60,12 @@ class TwistController(object):
                                   self.max_lat_accel,
                                   self.max_steer_angle)
 
+
+
         self.throttle_pid = PID(VEL_PID_KP,VEL_PID_KI,VEL_PID_KD,THROTTLE_PID_LIMIT_MIN,THROTTLE_PID_LIMIT_MAX)
         self.throttle_lp = LowPassFilter(THROTTLE_LP_TAO,THROTTLE_LP_TS)
+        self.brake_lp = LowPassFilter(BRAKE_LP_TAO,BRAKE_LP_TS)
+
         self.lastTime = 0.0
         self.first_call = True
         self.pref_vel = 0.0
@@ -94,16 +112,24 @@ class TwistController(object):
                 steer = self.yaw.get_steering( proposed_linear_vel, proposed_angular_vel, current_linear_vel)
                 error = self.throttle_pid.step(delta_vel,dt)
 
-                #if (error > 0.0 ):
+                if (error > 0.0 ):
                     # Acceleration condition.
-                #    throttle = self.throttle_lp.filt(error)
-                #else:
-                #    throttle = 0.0
-                throttle = self.throttle_lp.filt(error)
-                if throttle <= 0.0:
+                    throttle = self.throttle_lp.filt(error)
+                    if throttle <= 0.2:
+                        throttle = 0.0
+                    self.brake_lp.set(0) #  While we are accelerating set the brake lp to zero.
+                else:
                     throttle = 0.0
+                    # use linear map from pid to brake force range. error 0 to -1/
+                    brake_force = abs(error) * self.max_brake_force
+                    brake = self.brake_lp.filt(brake_force)
 
-                rospy.logwarn("Error:%f : Throttle:%f : DeltaVel:%f Target vel:%f : Actual Vel:%f",error,throttle,delta_vel,proposed_linear_vel,current_linear_vel)
+                    if (brake <= self.brake_deadband ):
+                        brake = self.brake_deadband
+
+                    self.throttle_lp.set(0) #  While we are braking set the accelerator lp to zero.
+
+                rospy.logwarn("PID Error:%f : Throttle:%f : brake:%f DeltaVel:%f Target vel:%f : Actual Vel:%f",error,throttle,brake,delta_vel,proposed_linear_vel,current_linear_vel)
 
             else:
                 self.throttle_pid.reset()
