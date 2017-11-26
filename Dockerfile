@@ -41,7 +41,13 @@ RUN echo "export ROS_PACKAGE_PATH=/opt/ros/kinetic/share/:/capstone/ros/src/" >>
 # reason for pip was https://github.com/pdfminer/pdfminer.six/issues/27
 # reason for pillow was https://discussions.udacity.com/t/capstone-project-message-error-image-publisher/401756/11
 RUN pip install --upgrade pip
-RUN pip install --upgrade pillow
+RUN pip install --upgrade pillow 
+
+
+# necessary for trafficlight detection with mobilenet
+RUN apt-get install -y protobuf-compiler
+RUN pip install --upgrade matplotlib
+RUN apt-get install -y python-tk
 
 # ensure that the dependencies are always up to date
 RUN rosdep update
