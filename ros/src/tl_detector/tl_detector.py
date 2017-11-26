@@ -68,7 +68,7 @@ class TLDetector(object):
         for i in range(len(stop_line_positions)):
             nextWaypoint = self.get_closest_waypoint(stop_line_positions[i][0],stop_line_positions[i][1])
             self.trafficLightWaypoint.append(nextWaypoint)
-            print('Waypoint[' , i , '] = ' , nextWaypoint)
+            #print('Waypoint[' , i , '] = ' , nextWaypoint)
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -194,7 +194,7 @@ class TLDetector(object):
             if state == TrafficLight.UNKNOWN:
                 return -1, TrafficLight.UNKNOWN
             else:
-                return light_wp, state
+                return waypointUntilNextStopline, state
         else:
             return -1, TrafficLight.UNKNOWN
 
