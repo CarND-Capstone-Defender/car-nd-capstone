@@ -82,7 +82,7 @@ class TwistController(object):
         steer = 0.0
 
         # Testing - hardcode proposed velicity
-        proposed_linear_vel = 10.0 * ONE_MPH # 0.621371 # Why is ONE_MPH 0.44704 above?
+        #proposed_linear_vel = 20.0 * ONE_MPH # 0.621371 # Why is ONE_MPH 0.44704 above?
 
         if self.first_call:
             # It would be best to get timestampe from currnet vel message but not populated.
