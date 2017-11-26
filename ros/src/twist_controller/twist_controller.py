@@ -121,8 +121,6 @@ class TwistController(object):
                 if (error > 0.0 ):
                     # Acceleration condition.
                     throttle = self.throttle_lp.filt(error)
-                    if throttle <= 0.2:
-                        throttle = 0.0
                     self.brake_lp.set(0.) #  While we are accelerating set the brake lp to zero.
                 else:
                     throttle = 0.0
