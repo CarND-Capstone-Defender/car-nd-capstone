@@ -95,7 +95,12 @@ class TwistController(object):
 
             self.prev_vel = current_linear_vel
             self.prev_throttle = 0.0
+
+
             self.throttle_pid.reset()
+            self.throttle_lp.filt(0.)
+            self.brake_lp.filt(0.)
+
             self.first_call = False
 
         else:
@@ -118,7 +123,7 @@ class TwistController(object):
                     throttle = self.throttle_lp.filt(error)
                     if throttle <= 0.2:
                         throttle = 0.0
-                    self.brake_lp.set(0) #  While we are accelerating set the brake lp to zero.
+                    self.brake_lp.set(0.) #  While we are accelerating set the brake lp to zero.
                 else:
                     throttle = 0.0
                     # use linear map from pid to brake force range. error 0 to -1/
@@ -128,12 +133,14 @@ class TwistController(object):
                     if (brake <= self.brake_deadband ):
                         brake = self.brake_deadband
 
-                    self.throttle_lp.set(0) #  While we are braking set the accelerator lp to zero.
+                    self.throttle_lp.set(0.) #  While we are braking set the accelerator lp to zero.
 
                 rospy.logwarn("PID Error:%f : Throttle:%f : brake:%f DeltaVel:%f Target vel:%f : Actual Vel:%f",error,throttle,brake,delta_vel,proposed_linear_vel,current_linear_vel)
 
             else:
                 self.throttle_pid.reset()
+                self.throttle_lp.set(0.)
+                self.brake_lp.set(0.)
                 throttle = brake = steer = 0.0
 
         return throttle,brake,steer
