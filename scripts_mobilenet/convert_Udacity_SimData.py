@@ -41,7 +41,7 @@ LABEL_DICT_4 =  {
 def create_tf_example(example):
     
     # Udacity simulation data image format from Unity simulator of term 3 final integration project
-    # Files can be downloaded from https://mega.nz/#F!ldJhzRhL!NWASXMs4cWegrYYNbJ7bEg
+    # Files can be downloaded from ??? (Link from @zika)
     height = 600 # Image height
     width = 800 # Image width
 

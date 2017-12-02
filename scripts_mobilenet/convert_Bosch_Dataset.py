@@ -1,7 +1,7 @@
 import tensorflow as tf
 import yaml
 import os
-import dataset_utils    #the dataset_utils.py has been modified and is also in this folder
+import dataset_utils    # the dataset_utils.py has been modified and is also in this folder
 
 
 flags = tf.app.flags

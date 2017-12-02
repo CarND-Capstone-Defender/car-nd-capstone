@@ -71,10 +71,31 @@ class TLDetector(object):
 
         self.total_frame_counter = 0
 
+        self.vehicle_position = -1
+        self.last_vehicle_position = -1
+
+        self.waypoints_increasing = False
+
         rospy.spin()
 
     def pose_cb(self, msg):
         self.pose = msg
+        self.vehicle_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
+        waypoint_distance = abs(self.vehicle_position - self.last_vehicle_position)
+
+        if self.vehicle_position == self.last_vehicle_position:
+            rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
+            return
+
+        if self.vehicle_position > self.last_vehicle_position and waypoint_distance < 20:
+            self.waypoints_increasing = True
+        elif self.vehicle_position < self.last_vehicle_position and waypoint_distance < 20:
+            self.waypoints_increasing = False
+
+        self.last_vehicle_position = self.vehicle_position
+
+        rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
+
 
     def waypoints_cb(self, lane):
         self.waypoints = lane.waypoints
@@ -90,7 +111,7 @@ class TLDetector(object):
 
         for i in range(len(stop_line_positions)):
             nextWaypoint = self.get_closest_waypoint(stop_line_positions[i][0],stop_line_positions[i][1])
-            rospy.logdebug('stopline_waypoint[%s] = %s' , i  , nextWaypoint)
+            rospy.loginfo('stopline_waypoint[%s] = %s' , i  , nextWaypoint)
             self.trafficLightWaypoint.append(nextWaypoint)
 
     def traffic_cb(self, msg):
@@ -137,11 +158,32 @@ class TLDetector(object):
             rospy.logdebug('RED occurred now  %s times' , self.red_counter)
             if self.red_counter >= STATE_COUNT_THRESHOLD:
                 # threshold reached!
-                if self.light_wp <= self.last_wp or self.last_wp == -1: 
-                    # don't report red in case we already crossed the traffic light stop line !!
+                if self.waypoints_increasing == True:
+                    if self.light_wp <= self.last_wp+3 or self.last_wp == -1: 
+                        # don't report red in case we already crossed the traffic light stop line !!
+                        self.last_wp = self.light_wp
+                        rospy.loginfo('Finally publishing RED light in %s waypoints' , self.light_wp)
+                        self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+                else:
+                    ######################
+                    # UDACITY CARLA HACK Start
+                    # Following special treatment is a hack in order to deal 
+                    # with the high inaccuracy in calculation of nearest waypoint
+                    # within the area of waypoint 50...60...0...3
+                    ######################
+                    if len(self.config['stop_line_positions']) < 3 and (self.vehicle_position > 51 or self.vehicle_position <3):
+                        self.last_wp = self.light_wp
+                        rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
+                        self.upcoming_red_light_pub.publish(Int32(0))
+                        return
+                    ######################
+                    ## HACK End
+                    ######################
+                        
                     self.last_wp = self.light_wp
                     rospy.loginfo('Finally publishing RED light in %s waypoints' , self.light_wp)
                     self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+                                            
 
         elif self.state == TrafficLight.GREEN:
             # reset the red counter --> go!
@@ -151,6 +193,7 @@ class TLDetector(object):
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
             self.red_counter += 1   
+            self.last_wp = -1            
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
             self.last_state = self.state
         else:
@@ -205,6 +248,34 @@ class TLDetector(object):
         #Just call the classifier...
         return self.light_classifier.get_classification(self.camera_image)
 
+    def getWaypointsUntilNextStopline(self):
+        # 1) First of all get the current vehicle position
+        car_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
+        rospy.logdebug('Car position: %s' , car_position)
+
+        # 2) now calculate the number of waypoints until the next traffic light stopline
+        waypointUntilNextStopline = -1
+
+        for i in range(len(self.trafficLightWaypoint)):
+            if car_position < self.trafficLightWaypoint[i] and waypointUntilNextStopline == -1:
+                waypointUntilNextStopline = self.trafficLightWaypoint[i] - car_position
+
+        # if no traffic stopline has been found car_position must be beyond the last traffic stopline
+        # --> "estimate" the distance as the distance to first stopline and wait until
+        #     car_position > 0 again      
+        if waypointUntilNextStopline == -1:
+            #rospy.logdebug('END OF TRACK....')
+            waypointUntilNextStopline = (len(self.waypoints) - car_position) + self.trafficLightWaypoint[0]
+
+
+        if self.waypoints_increasing == False:
+            waypointUntilNextStopline = len(self.waypoints) - waypointUntilNextStopline
+
+            
+
+        return waypointUntilNextStopline
+
+
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -218,40 +289,28 @@ class TLDetector(object):
         #TODO find the closest visible traffic light (if one exists)
 
         if(self.pose):
-            # 1) First of all get the current vehicle position
-            car_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
-            rospy.logdebug('Car position: %s' , car_position)
 
-            # 2) now calculate the number of waypoints until the next traffic light stopline
-            waypointUntilNextStopline = -1
-            for i in range(len(self.trafficLightWaypoint)):
-                if car_position < self.trafficLightWaypoint[i] and waypointUntilNextStopline == -1:
-                    waypointUntilNextStopline = self.trafficLightWaypoint[i] - car_position
-
-            # if no traffic stopline has been found car_position must be beyond the last traffic stopline
-            # --> "estimate" the distance as the distance to first stopline and wait until
-            #     car_position > 0 again      
-            if waypointUntilNextStopline == -1:
-                #rospy.logdebug('END OF TRACK....')
-                waypointUntilNextStopline = (len(self.waypoints) - car_position) + self.trafficLightWaypoint[0]
-
-            # 3) Detect the color of the traffic light (if yet visible)
+            # Detect the color of the traffic light (if yet visible)
             state = self.get_light_state()
+
+            # Get the waypoints to go before the next stopline
+            waypointsToGo = self.getWaypointsUntilNextStopline()
+            
 
             # Just debug....
             if state == TrafficLight.UNKNOWN:
-                rospy.logdebug('%s waypoints to next TL stopline of color UNKNOWN' , waypointUntilNextStopline)
+                rospy.logdebug('%s waypoints to next TL stopline of color UNKNOWN' , waypointsToGo)
             elif state == TrafficLight.RED:
-                rospy.logdebug('%s waypoints to next TL stopline of color RED' , waypointUntilNextStopline)
+                rospy.logdebug('%s waypoints to next TL stopline of color RED' , waypointsToGo)
             elif state == TrafficLight.YELLOW:
-                rospy.logdebug('%s waypoints to next TL stopline of color YELLOW' , waypointUntilNextStopline)
+                rospy.logdebug('%s waypoints to next TL stopline of color YELLOW' , waypointsToGo)
             elif state == TrafficLight.GREEN:
-                rospy.logdebug('%s waypoints to next TL stopline of color GREEN' , waypointUntilNextStopline)
+                rospy.logdebug('%s waypoints to next TL stopline of color GREEN' , waypointsToGo)
 
             if state == TrafficLight.UNKNOWN:
                 return -1, TrafficLight.UNKNOWN
             else:
-                return waypointUntilNextStopline, state
+                return waypointsToGo, state
         else:
             return -1, TrafficLight.UNKNOWN
 
