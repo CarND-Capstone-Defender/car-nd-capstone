@@ -133,7 +133,7 @@ class TwistController(object):
 
                     self.throttle_lp.set(0.) #  While we are braking set the accelerator lp to zero.
 
-                rospy.logwarn("PID Error:%f : Throttle:%f : brake:%f DeltaVel:%f Target vel:%f : Actual Vel:%f",error,throttle,brake,delta_vel,proposed_linear_vel,current_linear_vel)
+                #rospy.logwarn("PID Error:%f : Throttle:%f : brake:%f DeltaVel:%f Target vel:%f : Actual Vel:%f",error,throttle,brake,delta_vel,proposed_linear_vel,current_linear_vel)
 
             else:
                 self.throttle_pid.reset()

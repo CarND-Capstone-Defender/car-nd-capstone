@@ -8,8 +8,8 @@ from styx_msgs.msg import TrafficLightDetection
 
 import math
 
-MAX_DECEL = 1.0
-MIN_DISTANCE_TO_LIGHT  = 50
+MAX_DECEL = 4.0
+MIN_DISTANCE_TO_LIGHT  = 5
 
 
 '''
@@ -27,7 +27,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 50 # 200 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
@@ -83,6 +83,7 @@ class WaypointUpdater(object):
 		c = self.current_pos.pose.position
 
 		self.distance_to_light = math.sqrt(pow(tl.x - c.x,2) + pow(tl.y - c.y,2))
+		self.stopping = False
 
 
 		rospy.logwarn("Current Pose: Point x:%d y:%d z:%d",c.x,c.y,c.z)
@@ -135,10 +136,10 @@ class WaypointUpdater(object):
 			#if vel < 1.:
 			# vel = 0.
 			#	wp.twist.twist.linear.x = min(vel, wp.twist.twist.linear.x)
-			
-			# Set velocity to zero, from this point onwards, pid will manage deceleration. 
+
+			# Set velocity to zero, from this point onwards, pid will manage deceleration.
 			wp.twist.twist.linear.x = 0.
-			
+
 
 		return waypoints
 
@@ -147,20 +148,34 @@ class WaypointUpdater(object):
 	#Points are the nearest LOOKAHEAD_WPS points to the current position
 	def do_update(self):
 		if(self.base_way != None) and (self.current_pos != None):
+
+			if ((self.next_tl_state == 0) or (self.next_tl_state == 1)):
+				if (self.distance_to_light >= MIN_DISTANCE_TO_LIGHT):
+					self.stopping = True
+					rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
+				else:
+					self.stopping = False
+			else:
+				self.stopping = False
+
 			self.final_way = Lane()
 			closest_idx = self.check_closet_point(self.base_way.waypoints, self.current_pos)
 			base_way_len = len(self.base_way.waypoints)
 			for i in range(closest_idx, (closest_idx + LOOKAHEAD_WPS)):
 				idx = i % base_way_len
-				self.final_way.waypoints.append(self.base_way.waypoints[idx])
+				wp = self.base_way.waypoints[idx]
+				if (self.stopping == True):
+					wp.twist.twist.linear.x = 0.
+
+				self.final_way.waypoints.append(wp)
 
 			# List of base way points - ahead, they are loaded from base waypints, so
 			# are all set to the target velocity. The PID controller will manage accel.
 			# We only have to modify the speeds for cases where the light is red/yellow.
-			if ((self.next_tl_state == 0) or (self.next_tl_state == 1)):
-				if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
-					self.final_way.waypoints = self.decelerate(self.final_way.waypoints)
-					rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
+			#if ((self.next_tl_state == 0) or (self.next_tl_state == 1)):
+			#	if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
+			#		self.final_way.waypoints = self.decelerate(self.final_way.waypoints)
+			#		rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
 
 			self.final_waypoints_pub.publish(self.final_way)
 
