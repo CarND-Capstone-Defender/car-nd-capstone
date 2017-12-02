@@ -110,9 +110,9 @@ class TLClassifier(object):
             cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB) 
             rospy.logdebug('Converting image from BGR to RGB in SIM mode')
         else:
-            #cv_image = self.bridge.imgmsg_to_cv2(image, "bgr8")
-            #cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB) 
-            #rospy.logdebug('Converting image from BGR to RGB in CALRA mode')
+            cv_image = self.bridge.imgmsg_to_cv2(image, "bgr8")
+            cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB) 
+            rospy.logdebug('Converting image from BGR to RGB in CALRA mode')
             pass
 
         with self._detection_graph.as_default():

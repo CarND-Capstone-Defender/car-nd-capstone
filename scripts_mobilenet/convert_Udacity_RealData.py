@@ -8,6 +8,7 @@ flags = tf.app.flags
 flags.DEFINE_string('output_path', '', 'Path to output TFRecord')
 FLAGS = flags.FLAGS
 
+# use simple labels LABEL_DICT_4 or most sophisticated LABEL_DICT_14 depending on your use case....
 LABEL_DICT_14 =  {
     "Green" : 1,
     "Red" : 2,
@@ -32,9 +33,16 @@ LABEL_DICT_4 =  {
     "off" : 4,
     }
 
+# create the tensorflow binary training records for retraining of pretrained models
+# we are using the object detection API from tensorflow for retraining
+# see also following links:
+# https://github.com/tensorflow/models/tree/master/research/object_detection
+# https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md
+# https://towardsdatascience.com/how-to-train-your-own-object-detector-with-tensorflows-object-detector-api-bec72ecfe1d9
 def create_tf_example(example):
     
-    # Bosch
+    # Udacity real data image format from Carla
+    # Files can be downloaded from https://mega.nz/#F!ldJhzRhL!NWASXMs4cWegrYYNbJ7bEg
     height = 1096 # Image height
     width = 1368 # Image width
 
@@ -89,7 +97,8 @@ def main(_):
     
     writer = tf.python_io.TFRecordWriter(FLAGS.output_path + os.sep + "tf_train_udacity_realdata.record")
     
-    # Udacity real data
+    # Udacity real dataset labeling file - here hardcoded.....
+    # Files can be downloaded from https://mega.nz/#F!ldJhzRhL!NWASXMs4cWegrYYNbJ7bEg
     INPUT_YAML = "udacity_realdata_train.yaml"
     examples = yaml.load(open(INPUT_YAML, 'rb').read())
 
