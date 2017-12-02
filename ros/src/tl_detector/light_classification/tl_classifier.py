@@ -1,11 +1,11 @@
 import rospy
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from styx_msgs.msg import TrafficLight
 from cv_bridge import CvBridge
 import tensorflow as tf
 import numpy as np
 from object_detection.utils import label_map_util
-from object_detection.utils import visualization_utils as vis_util
+#from object_detection.utils import visualization_utils as vis_util
 import os
 import time
 import math
