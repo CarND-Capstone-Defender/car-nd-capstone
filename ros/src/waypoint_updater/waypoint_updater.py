@@ -7,6 +7,7 @@ from styx_msgs.msg import Lane, Waypoint
 from styx_msgs.msg import TrafficLightDetection
 
 import math
+import copy
 
 MAX_DECEL = 4.0
 MIN_DISTANCE_TO_LIGHT  = 5
@@ -160,10 +161,11 @@ class WaypointUpdater(object):
 
 			self.final_way = Lane()
 			closest_idx = self.check_closet_point(self.base_way.waypoints, self.current_pos)
+			closest_idx = closest_idx + 1  #Skip forward.
 			base_way_len = len(self.base_way.waypoints)
 			for i in range(closest_idx, (closest_idx + LOOKAHEAD_WPS)):
 				idx = i % base_way_len
-				wp = self.base_way.waypoints[idx]
+				wp = copy.deepcopy(self.base_way.waypoints[idx])
 				if (self.stopping == True):
 					wp.twist.twist.linear.x = 0.
 

@@ -16,7 +16,7 @@ VEL_PID_KD = 0.0000001
 THROTTLE_LP_TAO =  2.0 / 2.2
 THROTTLE_LP_TS = 0.02 # Assuming 50 hz operation 1.0 / 50.0
 
-BRAKE_LP_TAO = 1.0/2.2
+BRAKE_LP_TAO = 0.1/2.2
 BRAKE_LP_TS = 0.02 # Assuming 50 hz operation 1.0 / 50.0
 
 
@@ -26,7 +26,7 @@ THROTTLE_PID_LIMIT_MIN = -1.0 #float('-inf')
 
 CURRENT_FUEL_LEVEL = 100  # Percent full
 
-MAX_brake_FORCE_RATIO = 1
+MAX_brake_FORCE_RATIO = 2
 
 
 
@@ -128,8 +128,9 @@ class TwistController(object):
                     brake_force = abs(error) * self.max_brake_force
                     brake = self.brake_lp.filt(brake_force)
 
-                    if (brake <= self.brake_deadband ):
-                        brake = self.brake_deadband
+                    #Need to apply final presure as error gets too small, we creep along.
+                    if (brake <= self.brake_deadband * 5):
+                        brake = self.brake_deadband * 5
 
                     self.throttle_lp.set(0.) #  While we are braking set the accelerator lp to zero.
 
