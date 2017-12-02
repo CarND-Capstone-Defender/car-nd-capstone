@@ -26,7 +26,7 @@ THROTTLE_PID_LIMIT_MIN = -1.0 #float('-inf')
 
 CURRENT_FUEL_LEVEL = 100  # Percent full
 
-MAX_brake_FORCE_RATIO = 2
+MAX_brake_FORCE_RATIO = 5
 
 
 
