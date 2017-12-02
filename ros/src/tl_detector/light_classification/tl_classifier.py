@@ -1,24 +1,26 @@
 import rospy
-#import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt      
 from styx_msgs.msg import TrafficLight
 from cv_bridge import CvBridge
 import tensorflow as tf
 import numpy as np
 from object_detection.utils import label_map_util
-#from object_detection.utils import visualization_utils as vis_util
+from object_detection.utils import visualization_utils as vis_util
 import os
 import time
 import math
 import yaml
 import cv2
 
-#from matplotlib import pyplot as plt
-#from PIL import Image
+#for image publishing
+from sensor_msgs.msg import CompressedImage
+
 
 NUM_CLASSES = 4
 MIN_DETECTION_PROB_THRESHOLD = 0.6
 
 class TLClassifier(object):
+
     def __init__(self):
         rospy.logdebug(os.getcwd())
 
@@ -79,7 +81,11 @@ class TLClassifier(object):
         # Loading label map categories
         categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(categories)
-        rospy.logdebug('Label Map = %s'  , self.category_index)            
+        rospy.logdebug('Label Map = %s'  , self.category_index)          
+
+        self.publish_trafficlight_image = rospy.Publisher("/tl_classifier/image_raw/compressed", CompressedImage, queue_size=4)      
+        rospy.logdebug('Publishing ROS message /tl_classifier/image_raw/compressed')          
+                
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -139,17 +145,22 @@ class TLClassifier(object):
             scores = np.squeeze(scores)
             classes = np.squeeze(classes).astype(np.int32)
             
-            #vis_util.visualize_boxes_and_labels_on_image_array(
-            #    image, boxes, classes, scores,
-            #    self.category_index,
-            #    use_normalized_coordinates=True,
-            #    line_thickness=6)
+            # Annotate the image and publish as topic /tl_classifier/image_raw/compressed
+            vis_util.visualize_boxes_and_labels_on_image_array(
+            cv_image, boxes, classes, scores,
+            self.category_index,
+            use_normalized_coordinates=True,
+            line_thickness=6)
             
-            # IMAGE_SIZE = (12, 8)
-            # plt.figure(figsize=IMAGE_SIZE)
-            # plt.imshow(image)
-            # plt.show()
-
+            # Create CompressedIamge #
+            msg = CompressedImage()
+            msg.header.stamp = rospy.Time.now()
+            msg.format = "jpeg"
+            msg.data = np.array(cv2.imencode('.jpg', cv_image)[1]).tostring()
+            # Publish new image
+            self.publish_trafficlight_image.publish(msg)
+            
+            
             # loop through all bounding boxes which have been found
             for i in range(boxes.shape[0]):
                 # only loop through bounding boxes which score is higher 
