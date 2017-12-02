@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from styx_msgs.msg import TrafficLightDetection
 
 import math
 
@@ -33,21 +34,22 @@ class WaypointUpdater(object):
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
+        rospy.Subscriber('/traffic_waypoint_injection', TrafficLightDetection, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
-        
+
         # TODO: Add other member variables you need below
         #current position & base waypoint msgs variables
         self.current_pos = None
         self.base_way = None
-        
+
         #rate is same as DBW node rospy rate
         rate = rospy.Rate(50)
-        
+
         while not rospy.is_shutdown():
             self.do_update()
             rate.sleep()
-        
+
     def pose_cb(self, msg):
         #save msg of current position to it's variable
         self.current_pos = msg
@@ -55,10 +57,12 @@ class WaypointUpdater(object):
     def waypoints_cb(self, waypoints):
         #save msg of base waypoints to it's variable
         self.base_way = waypoints
-            
+
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        self.lastTl_msg = msg
+        rospy.logwarn("Traffic Msg Rx:Light: Point %d %d",self.lastTl_msg.state, self.lastTl_msg.waypoint)
+
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -90,7 +94,7 @@ class WaypointUpdater(object):
                 min_delta = delta
                 min_idx = i
         return min_idx
-               
+
     #This function is used to select number of base waypoints to be added to the final waypoint msg to be published
     #Points are the nearest LOOKAHEAD_WPS points to the current position
     def do_update(self):
@@ -101,9 +105,9 @@ class WaypointUpdater(object):
             for i in range(closest_idx, (closest_idx + LOOKAHEAD_WPS)):
                 idx = i % base_way_len
                 self.final_way.waypoints.append(self.base_way.waypoints[idx])
-            
+
             self.final_waypoints_pub.publish(self.final_way)
-            
+
 
 if __name__ == '__main__':
     try:
