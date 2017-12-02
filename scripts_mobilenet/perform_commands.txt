@@ -1,0 +1,35 @@
+python /home/antonia/repos/models/research/object_detection/train.py \
+    --logtostderr \
+    --pipeline_config_path=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/ssd_mobilenet_v1_coco_2017_11_17/ssd_mobilenet_v1_coco.config   
+    --train_dir=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/ssd_mobilenet_v1_coco_2017_11_17/train
+
+
+
+python /home/antonia/repos/models/research/object_detection/export_inference_graph.py \
+    --logtostderr \
+    --pipeline_config_path=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/ssd_mobilenet_v1_coco_2017_11_17/ssd_mobilenet_v1_coco.config \
+    --output_directory=frozen_sim \
+    --trained_checkpoint_prefix=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/ssd_mobilenet_v1_coco_2017_11_17/train/model.ckpt-20000
+
+
+tensorboard --logdir=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/ssd_mobilenet_v1_coco_20111_1
+
+
+# in order to activate
+export PYTHONPATH=./lib/python3.6/site-packages/:/home/antonia/repos/models/research:/home/antonia/repos/models/research/slim
+source activate tensorflow
+
+
+
+
+
+python /home/antonia/repos/models/research/object_detection/train.py \
+    --logtostderr \
+    --pipeline_config_path=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/faster_rcnn_inception_v2_coco_2017_11_08/faster_rcnn_inception_v2.config
+    --train_dir=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/faster_rcnn_inception_v2_coco_2017_11_08/train
+
+python /home/antonia/repos/models/research/object_detection/export_inference_graph.py \
+    --logtostderr \
+    --pipeline_config_path=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/faster_rcnn_inception_v2_coco_2017_11_08/faster_rcnn_inception_v2.config \
+    --output_directory=frozen_sim \
+    --trained_checkpoint_prefix=/home/antonia/Udacity/Term3/TrafficLightDetection/mscoco_train/udacity/models/faster_rcnn_inception_v2_coco_2017_11_08/train/model.ckpt-500
