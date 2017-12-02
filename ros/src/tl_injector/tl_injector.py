@@ -7,6 +7,8 @@ from styx_msgs.msg import Lane
 import math
 import sys, traceback
 
+INJECT_LIGHT_DISTANCE_AHEAD = 100
+
 ######################################
 # how to run the TL injector ?
 # - use the Docker environment
@@ -16,7 +18,7 @@ import sys, traceback
 # - subscribe to topic /traffic_waypoint_injection
 
 # Example:
-# ./attachToContainer.sh 
+# ./attachToContainer.sh
 # ./runTL_injector.sh
 # r
 
@@ -29,9 +31,9 @@ import sys, traceback
 import sys, select, termios, tty
 
 moveBindings = {
-    'r': (0),
-    'y': (1),
-    'g': (2),
+	'r': (0),
+	'y': (1),
+	'g': (2),
 	  'x': (-1),
 }
 
@@ -52,7 +54,7 @@ class TLInjector(object):
 	def __init__(self):
 
 		rospy.init_node('tl_injector', log_level=rospy.DEBUG)
-		
+
 		self.pose = None
 		self.waypoints = None
 
@@ -62,7 +64,7 @@ class TLInjector(object):
 		self.upcoming_traffic_light_injection = rospy.Publisher(
 			'/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
 
-    # keyboard logger implemented according to https://github.com/ros-teleop/teleop_twist_keyboard/blob/master/teleop_twist_keyboard.py
+	# keyboard logger implemented according to https://github.com/ros-teleop/teleop_twist_keyboard/blob/master/teleop_twist_keyboard.py
 		rate = rospy.Rate(10)  # try removing this line ans see what happens
 		while not rospy.is_shutdown():
 			key = getKey()
@@ -74,11 +76,13 @@ class TLInjector(object):
 					print 'INFO: key x pressed - TLInjector is exiting....'
 					sys.exit(0)
 
-  			if self.pose is not None:
+			if self.pose is not None:
 					injectorMsg = TrafficLightDetection()
-					injectorMsg.waypoint = self.get_closest_waypoint(self.pose.pose)
+					tl_pose=self.pose.pose
+					tl_pose.position.x = tl_pose.position.x + INJECT_LIGHT_DISTANCE_AHEAD
+					injectorMsg.waypoint = self.get_closest_waypoint(tl_pose)
 					injectorMsg.state = state
-					
+
 					if self.pose:
 						if state == 0:
 							color = 'RED'
@@ -86,14 +90,14 @@ class TLInjector(object):
 							color = 'YELLOW'
 						elif state == 2:
 							color = 'GREEN'
-						else: 
+						else:
 							color = 'UNKNOWN'
 							injectorMsg.state = 3
-						
+
 						#debugMsg = 'Injecting ' + color + ' traffic light at (x,y) = (' + str(self.pose.pose.position.x) + ',' + str(self.pose.pose.position.y) + ')'
-						debugMsg = 'Injecting ' + color + ' traffic light at waypoint = ' + str(injectorMsg.waypoint)
+						debugMsg = 'Injecting ' + color +  ' traffic light at waypoint Index = ' + str(injectorMsg.waypoint)
 						print debugMsg
-					
+
 					self.upcoming_traffic_light_injection.publish(injectorMsg)
 
 	def pose_cb(self, msg):
@@ -114,7 +118,7 @@ class TLInjector(object):
 			"""
 			if self.waypoints is None:
 					return
-			
+
 			minDist = 99999
 			minIndex = None
 
@@ -126,8 +130,8 @@ class TLInjector(object):
 					wp_y = waypoint.pose.pose.position.y
 					distance = math.sqrt(pow(posx - wp_x,2) + pow(posy - wp_y,2))
 
-					#if we find a closer distance 
-					if (distance < minDist): 
+					#if we find a closer distance
+					if (distance < minDist):
 							minIndex = i          # use this as next closest waypojnt
 							minDist = distance  # use this distance as new closest distance
 
@@ -135,8 +139,8 @@ class TLInjector(object):
 			return minIndex
 
 if __name__ == '__main__':
-    try:
-        TLInjector()
-    except rospy.ROSInterruptException:
-        rospy.logerr('Could not start traffic injector node.')
+	try:
+		TLInjector()
+	except rospy.ROSInterruptException:
+		rospy.logerr('Could not start traffic injector node.')
 	termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.settings)
