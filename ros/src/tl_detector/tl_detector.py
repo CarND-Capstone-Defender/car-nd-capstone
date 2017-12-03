@@ -23,7 +23,7 @@ STATE_COUNT_THRESHOLD = 3
 #   2 = only every second frame is taken
 #   3 = only every third frame is taken
 #   .....
-FRAME_RATE = 2
+FRAME_RATE = 3
 
 class TLDetector(object):
     def __init__(self):
@@ -74,7 +74,9 @@ class TLDetector(object):
         self.vehicle_position = -1
         self.last_vehicle_position = -1
 
-        self.waypoints_increasing = False
+        self.waypoints_increasing = True
+
+        self.state_count = 0
 
         rospy.spin()
 
@@ -162,7 +164,7 @@ class TLDetector(object):
                     if self.light_wp <= self.last_wp+3 or self.last_wp == -1: 
                         # don't report red in case we already crossed the traffic light stop line !!
                         self.last_wp = self.light_wp
-                        rospy.loginfo('Finally publishing RED light in %s waypoints' , self.light_wp)
+                        rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
                         self.upcoming_red_light_pub.publish(Int32(self.light_wp))
                 else:
                     ######################
@@ -173,7 +175,8 @@ class TLDetector(object):
                     ######################
                     if len(self.config['stop_line_positions']) < 3 and (self.vehicle_position > 51 or self.vehicle_position <3):
                         self.last_wp = self.light_wp
-                        rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
+                        #rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
+                        rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
                         self.upcoming_red_light_pub.publish(Int32(0))
                         return
                     ######################
@@ -181,7 +184,7 @@ class TLDetector(object):
                     ######################
                         
                     self.last_wp = self.light_wp
-                    rospy.loginfo('Finally publishing RED light in %s waypoints' , self.light_wp)
+                    rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
                     self.upcoming_red_light_pub.publish(Int32(self.light_wp))
                                             
 
@@ -190,18 +193,61 @@ class TLDetector(object):
             self.red_counter = 0
             self.last_wp = -1            
             self.last_state = self.state
+            rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
+            self.upcoming_red_light_pub.publish(Int32(self.light_wp))
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
             self.red_counter += 1   
             self.last_wp = -1            
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
             self.last_state = self.state
+            rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
+            self.upcoming_red_light_pub.publish(Int32(self.light_wp))
         else:
             # seems to be unknown detection..... --> go!
             # reset the red counter
             self.red_counter = 0
             self.last_wp = -1
             self.last_state = self.state
+            rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
+            self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+
+    def image_cb_orig(self, msg):
+        """Identifies red lights in the incoming camera image and publishes the index
+            of the waypoint closest to the red light's stop line to /traffic_waypoint
+        Args:
+            msg (Image): image from car-mounted camera
+        """
+
+        self.total_frame_counter += 1
+
+        if (self.total_frame_counter % FRAME_RATE != 0):
+            rospy.logdebug('dropping frame #%s as dropping rate is %s' , self.total_frame_counter , FRAME_RATE)
+            return         
+        
+        self.has_image = True
+        self.camera_image = msg
+        light_wp, state = self.process_traffic_lights()
+
+        '''
+        Publish upcoming red lights at camera frequency.
+        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+        of times till we start using it. Otherwise the previous stable state is
+        used.
+        '''
+        if self.state != state:
+            self.state_count = 0
+            self.state = state
+        elif self.state_count >= STATE_COUNT_THRESHOLD:
+            self.last_state = self.state
+            light_wp = light_wp if state == TrafficLight.RED else -1
+            self.last_wp = light_wp
+            rospy.loginfo('Finally publishing RED light in %s waypoints' , self.light_wp)
+            self.upcoming_red_light_pub.publish(Int32(light_wp))
+        else:
+            rospy.loginfo('Finally publishing RED light in %s waypoints' , self.last_wp)
+            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+        self.state_count += 1
 
 
     def get_closest_waypoint(self, posx , posy):
@@ -275,6 +321,29 @@ class TLDetector(object):
 
         return waypointUntilNextStopline
 
+    def getClosestTrafficLightWaypoint(self):
+        # 1) First of all get the current vehicle position
+        car_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
+        rospy.logdebug('Car position: %s' , car_position)
+
+        # start with the first traffic light waypoint
+
+        if self.waypoints_increasing == True:
+            index = 0
+            # loop through all traffic light waypoints and get the closest one
+            for i in range(len(self.trafficLightWaypoint)):
+                if car_position < self.trafficLightWaypoint[i]:
+                    index =  i
+                    break
+        else:
+            index = len(self.trafficLightWaypoint)-1
+            # loop through all traffic light waypoints and get the closest one
+            for i in range(len(self.trafficLightWaypoint)):
+                if car_position > self.trafficLightWaypoint[len(self.trafficLightWaypoint) - i - 1]: 
+                    index =  len(self.trafficLightWaypoint) - i - 1
+                    break
+
+        return self.trafficLightWaypoint[index]
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -294,7 +363,8 @@ class TLDetector(object):
             state = self.get_light_state()
 
             # Get the waypoints to go before the next stopline
-            waypointsToGo = self.getWaypointsUntilNextStopline()
+            #waypointsToGo = self.getWaypointsUntilNextStopline()
+            waypointsToGo = self.getClosestTrafficLightWaypoint()
             
 
             # Just debug....
