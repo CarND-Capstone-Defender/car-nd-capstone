@@ -347,10 +347,10 @@ class TLDetector(object):
 
         return self.trafficLightWaypoint[index]
 
-    def publishWaypoint(self, state):
+    def publishWaypoint(self, wp):
         detectorMsg = TrafficLightDetection()
-        detectorMsg.waypoint = self.light_wp
-        if self.light_wp == -1:
+        detectorMsg.waypoint = wp
+        if wp == -1:
             detectorMsg.state = TrafficLight.GREEN
         else: 
             detectorMsg.state = TrafficLight.RED
