@@ -56,7 +56,7 @@ class TLDetector(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection, queue_size=1)
         #self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
 
         self.bridge = CvBridge()
@@ -165,7 +165,8 @@ class TLDetector(object):
                         # don't report red in case we already crossed the traffic light stop line !!
                         self.last_wp = self.light_wp
                         rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
-                        self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+                        self.publishWaypoint(self.light_wp)
+                        # self.upcoming_red_light_pub.publish(Int32(self.light_wp))
                 else:
                     ######################
                     # UDACITY CARLA HACK Start
@@ -177,7 +178,8 @@ class TLDetector(object):
                         self.last_wp = self.light_wp
                         #rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
                         rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
-                        self.upcoming_red_light_pub.publish(Int32(0))
+                        #self.upcoming_red_light_pub.publish(Int32(0))
+                        self.publishWaypoint(self.light_wp)
                         return
                     ######################
                     ## HACK End
@@ -185,7 +187,7 @@ class TLDetector(object):
                         
                     self.last_wp = self.light_wp
                     rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
-                    self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+                    self.publishWaypoint(self.light_wp)
                                             
 
         elif self.state == TrafficLight.GREEN:
@@ -194,7 +196,7 @@ class TLDetector(object):
             self.last_wp = -1            
             self.last_state = self.state
             rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
-            self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+            self.publishWaypoint(-1)
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
             self.red_counter += 1   
@@ -202,7 +204,7 @@ class TLDetector(object):
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
             self.last_state = self.state
             rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
-            self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+            self.publishWaypoint(-1)
         else:
             # seems to be unknown detection..... --> go!
             # reset the red counter
@@ -210,7 +212,7 @@ class TLDetector(object):
             self.last_wp = -1
             self.last_state = self.state
             rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
-            self.upcoming_red_light_pub.publish(Int32(self.light_wp))
+            self.publishWaypoint(-1)
 
     def image_cb_orig(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
@@ -344,6 +346,17 @@ class TLDetector(object):
                     break
 
         return self.trafficLightWaypoint[index]
+
+    def publishWaypoint(self, state):
+        detectorMsg = TrafficLightDetection()
+        detectorMsg.waypoint = self.light_wp
+        if self.light_wp == -1:
+            detectorMsg.state = TrafficLight.GREEN
+        else: 
+            detectorMsg.state = TrafficLight.RED
+
+        self.upcoming_red_light_pub.publish(detectorMsg)
+
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
