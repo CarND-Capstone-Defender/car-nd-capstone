@@ -118,7 +118,7 @@ class TwistController(object):
 
             #  At breaking, we are generating negative proposed velocity, possible error in waypoint gen while breaking.
             if (proposed_linear_vel < 0.):
-                rospy.logwarn("Yaw:%f set to zero:", proposed_linear_vel)
+                rospy.logwarn("Proposed liner vel:%f set to zero:", proposed_linear_vel)
                 proposed_linear_vel = 0
 
             delta_vel = proposed_linear_vel - current_linear_vel
