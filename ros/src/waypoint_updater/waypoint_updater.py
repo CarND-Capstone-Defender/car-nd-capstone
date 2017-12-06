@@ -180,7 +180,7 @@ class WaypointUpdater(object):
 			closest_idx = self.check_closet_point(self.base_way.waypoints, self.current_pos)
 			closest_idx = closest_idx + 1  #Skip forward.
 			base_way_len = len(self.base_way.waypoints)
-			
+
 			if (self.stopping == True):
 				host_wp = copy.deepcopy(self.base_way.waypoints[closest_idx])
 				v = host_wp.twist.twist.linear.x
@@ -191,7 +191,7 @@ class WaypointUpdater(object):
 				wp = copy.deepcopy(self.base_way.waypoints[idx])
 				if (self.stopping == True):
 					wp.twist.twist.linear.x = v + a * 0.02
-					v = wp.twist.twist.linear.x 
+					v = wp.twist.twist.linear.x
 
 
 				self.final_way.waypoints.append(wp)

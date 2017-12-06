@@ -8,6 +8,9 @@ GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
 
+YAW_LP_TAO = 0.2
+YAW_LP_TS = 0.1
+
 # Tuned for simulator, unknown if representitve for Carla.
 VEL_PID_KP = 0.8
 VEL_PID_KI = 0.0001
@@ -61,6 +64,8 @@ class TwistController(object):
                                   self.max_lat_accel,
                                   self.max_steer_angle)
 
+        self.yaw_lp = LowPassFilter(YAW_LP_TAO,YAW_LP_TS)
+
 
 
         self.throttle_pid = PID(VEL_PID_KP,VEL_PID_KI,VEL_PID_KD,THROTTLE_PID_LIMIT_MIN,THROTTLE_PID_LIMIT_MAX)
@@ -96,6 +101,7 @@ class TwistController(object):
             self.prev_vel = current_linear_vel
             self.prev_throttle = 0.0
 
+            self.yaw_lp.filt(.0)
 
             self.throttle_pid.reset()
             self.throttle_lp.filt(0.)
@@ -110,12 +116,23 @@ class TwistController(object):
             dt = now - self.lastTime
             self.lastTime = now
 
+            #  At breaking, we are generating negative proposed velocity, possible error in waypoint gen while breaking.
+            if (proposed_linear_vel < 0.):
+                rospy.logwarn("Yaw:%f set to zero:", proposed_linear_vel)
+                proposed_linear_vel = 0
+
             delta_vel = proposed_linear_vel - current_linear_vel
 
 
             if (dbw_enabled):
                 #  For Steerig - use provided yaw controller
-                steer = self.yaw.get_steering( proposed_linear_vel, proposed_angular_vel, current_linear_vel)
+                steer_err = self.yaw.get_steering( proposed_linear_vel, proposed_angular_vel, current_linear_vel)
+                steer = self.yaw_lp.filt(steer_err)
+                #  rospy.logwarn("Yaw:%f : Yaw_lp:%f : P-lin-vel:%f Pre-ang-Vel:%f current-lin-vel:%f",steer_err,steer,proposed_linear_vel,proposed_angular_vel,current_linear_vel)
+
+
+
+
                 error = self.throttle_pid.step(delta_vel,dt)
 
                 if (error > 0.0 ):
@@ -137,6 +154,7 @@ class TwistController(object):
                 #rospy.logwarn("PID Error:%f : Throttle:%f : brake:%f DeltaVel:%f Target vel:%f : Actual Vel:%f",error,throttle,brake,delta_vel,proposed_linear_vel,current_linear_vel)
 
             else:
+                self.yaw_lp.filt(.0)
                 self.throttle_pid.reset()
                 self.throttle_lp.set(0.)
                 self.brake_lp.set(0.)
