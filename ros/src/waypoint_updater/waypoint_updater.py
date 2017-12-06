@@ -6,11 +6,13 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from styx_msgs.msg import TrafficLightDetection , TrafficLight
 
+
 import math
 import copy
 
 MAX_DECEL = 4.0
 MIN_DISTANCE_TO_LIGHT  = 100
+
 
 
 '''
@@ -42,6 +44,9 @@ class WaypointUpdater(object):
 
 		rospy.Subscriber('/traffic_waypoint', TrafficLightDetection, self.traffic_cb)
 
+		# rospy.Subscriber('/traffic_waypoint_injection', TrafficLightDetection, self.traffic_cb)
+
+
 		self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
 		# TODO: Add other member variables you need below
@@ -50,9 +55,11 @@ class WaypointUpdater(object):
 		self.base_way = None
 		self.tl_position = None
 		self.distance_to_light = 0
+
 		self.next_tl_state = TrafficLight.UNKNOWN
 
 		self.tl_detector_running = False
+
 
 		#rate is same as DBW node rospy rate
 		rate = rospy.Rate(50)
@@ -82,6 +89,7 @@ class WaypointUpdater(object):
 		self.next_tl_state = msg.state
 		#rospy.logwarn("Setting Traffic State to %s",self.next_tl_state)
 
+
 		self.tl_position = self.base_way.waypoints[msg.waypoint].pose.pose.position
 
 		tl = self.tl_position
@@ -94,6 +102,7 @@ class WaypointUpdater(object):
 		#rospy.logwarn("Current Pose: Point x:%d y:%d z:%d",c.x,c.y,c.z)
 		#rospy.logwarn("Traffic Msg Rx:Light: %d Way Point id: %d",msg.state, msg.waypoint)
 		#rospy.logwarn("Next TL Point: Point x:%d y:%d z:%d : Distance to Light:%d",tl.x,tl.y,tl.z,self.distance_to_light)
+
 
 
 
@@ -161,6 +170,7 @@ class WaypointUpdater(object):
 				if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
 					self.stopping = True
 					#rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
+
 				else:
 					self.stopping = False
 			else:
@@ -182,6 +192,7 @@ class WaypointUpdater(object):
 				if (self.stopping == True):
 					wp.twist.twist.linear.x = v + a * 0.02
 					v = wp.twist.twist.linear.x 
+
 
 				self.final_way.waypoints.append(wp)
 
