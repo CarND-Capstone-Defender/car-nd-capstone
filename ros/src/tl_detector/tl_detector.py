@@ -16,14 +16,6 @@ import math
 # until a traffic light detection is considered as reliable
 STATE_COUNT_THRESHOLD = 3 
 
-# specifies a rate which images shall be used in order to 
-# deal with long detection time in the neural network
-# example: 
-#   1 = every frame is taken
-#   2 = only every second frame is taken
-#   3 = only every third frame is taken
-#   .....
-FRAME_RATE = 3
 
 class TLDetector(object):
     def __init__(self):
@@ -34,6 +26,16 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
+
+        # specifies a rate which images shall be used in order to 
+        # deal with long detection time in the neural network
+        # example: 
+        #   1 = every frame is taken
+        #   2 = only every second frame is taken
+        #   3 = only every third frame is taken
+        #   .....
+        self.FRAME_RATE = 3
+
 
         #rospy.init_node('tl_detector' , log_level=rospy.DEBUG)
         rospy.init_node('tl_detector' , log_level=rospy.INFO)
@@ -128,10 +130,11 @@ class TLDetector(object):
 
         """
 
+
         self.total_frame_counter += 1
 
-        if (self.total_frame_counter % FRAME_RATE != 0):
-            rospy.logdebug('dropping frame #%s as dropping rate is %s' , self.total_frame_counter , FRAME_RATE)
+        if (self.total_frame_counter % self.FRAME_RATE != 0):
+            rospy.logdebug('dropping frame #%s as dropping rate is %s' , self.total_frame_counter , self.FRAME_RATE)
             return         
 
         self.has_image = True
@@ -192,6 +195,7 @@ class TLDetector(object):
 
         elif self.state == TrafficLight.GREEN:
             # reset the red counter --> go!
+            self.FRAME_RATE = 3
             self.red_counter = 0
             self.last_wp = -1            
             self.last_state = self.state
@@ -199,6 +203,7 @@ class TLDetector(object):
             self.publishWaypoint(-1)
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
+            self.FRAME_RATE = 1
             self.red_counter += 1   
             self.last_wp = -1            
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
@@ -208,6 +213,7 @@ class TLDetector(object):
         else:
             # seems to be unknown detection..... --> go!
             # reset the red counter
+            self.FRAME_RATE = 3
             self.red_counter = 0
             self.last_wp = -1
             self.last_state = self.state
@@ -220,6 +226,8 @@ class TLDetector(object):
         Args:
             msg (Image): image from car-mounted camera
         """
+
+        self.getClosestTrafficLightWaypoint()
 
         self.total_frame_counter += 1
 
@@ -371,29 +379,27 @@ class TLDetector(object):
         #TODO find the closest visible traffic light (if one exists)
 
         if(self.pose):
+            # 1. Get the waypoints to go before the next stopline
+            waypointsToGo = self.getWaypointsUntilNextStopline()
 
-            # Detect the color of the traffic light (if yet visible)
+            # 2. in case we are too far away from a traffic light we can also skip TL detection....
+            if waypointsToGo > 200:
+                #rospy.loginfo('Shut off TL detection....')
+                return -1, TrafficLight.UNKNOWN    
+
+            # 3. Detect the color of the traffic light (if yet visible)
             state = self.get_light_state()
-
-            # Get the waypoints to go before the next stopline
-            #waypointsToGo = self.getWaypointsUntilNextStopline()
-            waypointsToGo = self.getClosestTrafficLightWaypoint()
+            
+            nextTLWaypoint = self.getClosestTrafficLightWaypoint()
             
 
             # Just debug....
-            if state == TrafficLight.UNKNOWN:
-                rospy.logdebug('%s waypoints to next TL stopline of color UNKNOWN' , waypointsToGo)
-            elif state == TrafficLight.RED:
-                rospy.logdebug('%s waypoints to next TL stopline of color RED' , waypointsToGo)
-            elif state == TrafficLight.YELLOW:
-                rospy.logdebug('%s waypoints to next TL stopline of color YELLOW' , waypointsToGo)
-            elif state == TrafficLight.GREEN:
-                rospy.logdebug('%s waypoints to next TL stopline of color GREEN' , waypointsToGo)
+            rospy.logdebug('%s waypoints to next TL stopline' , waypointsToGo)
 
             if state == TrafficLight.UNKNOWN:
                 return -1, TrafficLight.UNKNOWN
             else:
-                return waypointsToGo, state
+                return nextTLWaypoint, state
         else:
             return -1, TrafficLight.UNKNOWN
 
