@@ -6,14 +6,18 @@ from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 from styx_msgs.msg import TrafficLightDetection , TrafficLight
 from geometry_msgs.msg import TwistStamped
+import tf
+import yaml
 
 import math
 import copy
 
-MAX_DECEL = 4.0
 MIN_DISTANCE_TO_LIGHT  = 100
+LOOKAHEAD_WPS = 25 # Number of waypoints we will publish. You can change this number
 
-
+#MPH_TO_MPS = 0.44704 # 0.44704 is factor from miles per hour --> meter per second
+#MAX_SPEED_SIM = 25 * MPH_TO_MPS # maximum speed in simulator is 25 miles per hour
+#MAX_SPEED_CARLA = 10 * MPH_TO_MPS # maximum speed on Carla is 10 miles per hour
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -30,8 +34,6 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 50 # 200 # Number of waypoints we will publish. You can change this number
-
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -40,12 +42,25 @@ class WaypointUpdater(object):
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
+
+        config_string = rospy.get_param("/traffic_light_config")
+        config = yaml.load(config_string)
+        stop_line_positions = config['stop_line_positions']
+        # CARLA track has only 1 traffic light
+        if (len(stop_line_positions) > 2):
+            # assume we are in simulator mode
+            self.mode = "SIM" 
+            self.waypoints_increasing = True
+        else:
+            # assume we are in Carla mode
+            self.mode = "CARLA" 
+            self.waypoints_increasing = False
 
         rospy.Subscriber('/traffic_waypoint', TrafficLightDetection, self.traffic_cb)
-
         # rospy.Subscriber('/traffic_waypoint_injection', TrafficLightDetection, self.traffic_cb)
 
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600. # m/s
+        rospy.logdebug("Speed limit = %s" , self.speed_limit)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -86,6 +101,9 @@ class WaypointUpdater(object):
     def waypoints_cb(self, waypoints):
         #save msg of base waypoints to it's variable
         self.base_way = waypoints
+        self.base_way_length = len(self.base_way.waypoints)
+        rospy.logdebug("Base Waypoint Length %s", self.base_way_length)
+        
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
@@ -103,7 +121,7 @@ class WaypointUpdater(object):
         if(self.tl_waypoint_index != -1):
             self.distance_to_light = math.sqrt(pow(tl.x - c.x,2) + pow(tl.y - c.y,2))
         else:
-            self.distance_to_light = 300
+            self.distance_to_light = MIN_DISTANCE_TO_LIGHT + 1
             
         self.stopping = False
 
@@ -137,17 +155,66 @@ class WaypointUpdater(object):
         x, y, z = p1.x - p2.x, p1.y - p2.y, p1.z - p2.z
         return math.sqrt(x*x + y*y + z*z)
 
+    def get_Euler_Angle(self,pose):
+        """Returns the roll, pitch yaw angles from a Quaternion """
+        return tf.transformations.euler_from_quaternion([pose.orientation.x,
+                                                        pose.orientation.y,
+                                                        pose.orientation.z,
+                                                        pose.orientation.w])
+
+    def is_waypoint_front(self,pose, waypoint):
+        """Take a waypoint and a pose , do a coordinate system transformation
+        setting the origin at the position of the pose object and as x-axis
+        the orientation of the z-axis of the pose
+        Args:
+            pose (object) : A pose object
+            waypoints (object) : A waypoint object
+        Returns:
+            bool : True if the waypoint is behind the car False if in front
+        """
+        _, _, pose_yaw = self.get_Euler_Angle(pose)
+        pose_X = pose.position.x
+        pose_Y = pose.position.y
+
+        waypoint_X = waypoint.pose.pose.position.x
+        waypoint_Y = waypoint.pose.pose.position.y
+
+        shift_x = waypoint_X - pose_X
+        shift_y = waypoint_Y - pose_Y
+
+        if (shift_x * math.cos(0 - pose_yaw) - shift_y * math.sin(0 - pose_yaw)) > 0:
+            return True
+        else:
+            return False
+
+
     #This function is used to loop over all the points and find the nearest one to the current point and return it's index
-    def check_closet_point(self, points, curr_point):
+    def get_closest_point(self):
         min_delta = 10000000
         min_idx = 0
-        for i in range(len(points)):
-            p = points[i].pose.pose.position
-            c = curr_point.pose.position
+        for i in range(len(self.base_way.waypoints)):
+            p = self.base_way.waypoints[i].pose.pose.position
+            c = self.current_pos.pose.position
             delta = math.sqrt((p.x - c.x)**2 + (p.y - c.y)**2  + (p.z - c.z)**2)
             if(delta < min_delta):
                 min_delta = delta
                 min_idx = i
+
+
+        is_in_front = self.is_waypoint_front(self.current_pos.pose, self.base_way.waypoints[min_idx])
+
+        if self.waypoints_increasing == True:
+            while is_in_front == False:
+                #rospy.logwarn("Waypoint NOT in front!!!")
+                min_idx = (min_idx + 1) % self.base_way_length        
+                is_in_front = self.is_waypoint_front(self.current_pos.pose, self.base_way.waypoints[min_idx])
+        else:
+            while is_in_front == True:
+                #rospy.logwarn("Waypoint NOT in front!!!")
+                min_idx = (min_idx + 1) % self.base_way_length        
+                #rospy.logwarn("New min_idx = %s" , min_idx)
+                is_in_front = self.is_waypoint_front(self.current_pos.pose, self.base_way.waypoints[min_idx])
+
         return min_idx
 
     def decelerate(self, waypoints):
@@ -186,27 +253,37 @@ class WaypointUpdater(object):
                 self.stopping = False
 
             self.final_way = Lane()
-            closest_idx = self.check_closet_point(self.base_way.waypoints, self.current_pos)
-            closest_idx = closest_idx + 1  #Skip forward.
-            base_way_len = len(self.base_way.waypoints)
+            closest_idx = self.get_closest_point()
+            
+            #rospy.logwarn("Base Waypoint Length %s", base_way_len)
+            #rospy.logwarn("Closest Waypoint %s", closest_idx)
 
             if (self.stopping == True):
-                host_wp = copy.deepcopy(self.base_way.waypoints[closest_idx])
-                #v = host_wp.twist.twist.linear.x
-                if(self.latest_current_velocity_msg != None):
-                    v = self.latest_current_velocity_msg.twist.linear.x
-                else:
-                    v = 0.
-                    
-                a = -150*v*v/(2*self.distance_to_light)
+                #host_wp = copy.deepcopy(self.base_way.waypoints[closest_idx])
+                v = 0.
+                #a = -v*v/self.distance_to_light
+                #rospy.logwarn("A: %s", a)
 
-            for i in range(closest_idx, (closest_idx + LOOKAHEAD_WPS)):
-                idx = i % base_way_len
+            if self.waypoints_increasing == True:
+                sign = +1
+            else:
+                sign = -1
+
+            #rospy.logwarn("Closest Waypoint %s", closest_idx)
+            #rospy.logwarn("Range start %s", closest_idx)
+            #rospy.logwarn("Range end %s", closest_idx + sign * LOOKAHEAD_WPS)
+            #rospy.logwarn("sign %s", sign)
+
+            for i in range(closest_idx, (closest_idx + sign * LOOKAHEAD_WPS), sign):
+                idx = i % self.base_way_length
+                #rospy.logwarn("new waypoint %s", idx)
                 wp = copy.deepcopy(self.base_way.waypoints[idx])
                 if (self.stopping == True):
-                    wp.twist.twist.linear.x = max(0,v + a * 0.02)
-                    v = wp.twist.twist.linear.x
-
+                    #wp.twist.twist.linear.x = max(0,v)
+                    wp.twist.twist.linear.x = 0
+                    #v = wp.twist.twist.linear.x
+                else:
+                    wp.twist.twist.linear.x = self.speed_limit
 
                 self.final_way.waypoints.append(wp)
 
@@ -218,6 +295,7 @@ class WaypointUpdater(object):
             #        self.final_way.waypoints = self.decelerate(self.final_way.waypoints)
             #        rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
 
+            #rospy.logwarn("Publish Waypoints: %s", self.final_way.waypoints[0])
             self.final_waypoints_pub.publish(self.final_way)
 
     def current_vel_callback(self, cb_msg):

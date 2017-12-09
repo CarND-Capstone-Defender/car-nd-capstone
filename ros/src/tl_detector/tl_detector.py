@@ -14,7 +14,7 @@ import math
 
 # specifies the number of confirmed occurrences of same color
 # until a traffic light detection is considered as reliable
-STATE_COUNT_THRESHOLD = 3 
+STATE_COUNT_THRESHOLD = 2
 
 
 class TLDetector(object):
@@ -34,32 +34,23 @@ class TLDetector(object):
         #   2 = only every second frame is taken
         #   3 = only every third frame is taken
         #   .....
-        self.FRAME_RATE = 3
+        self.FRAME_RATE = 2
 
 
         #rospy.init_node('tl_detector' , log_level=rospy.DEBUG)
         rospy.init_node('tl_detector' , log_level=rospy.INFO)
 
+        self.fullInitialized = False
         self.pose = None
         self.waypoints = None
         self.camera_image = None
         self.lights = []
 
-
-        # List of positions that correspond to the line to stop in front of for a given intersection
-        self.trafficLightWaypoint = []
-
-        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
-
-        config_string = rospy.get_param("/traffic_light_config")
-        self.config = yaml.load(config_string)
-
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection, queue_size=1)
-        #self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
+        self.last_vehicle_position = -1
+        self.waypoints_increasing = True
+        self.total_frame_counter = 0
+        self.vehicle_position = -1
+        self.state_count = 0
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
@@ -71,19 +62,28 @@ class TLDetector(object):
         self.last_wp = -1
         self.red_counter = 0
 
-        self.total_frame_counter = 0
+        # List of positions that correspond to the line to stop in front of for a given intersection
+        self.trafficLightWaypoint = []
 
-        self.vehicle_position = -1
-        self.last_vehicle_position = -1
 
-        self.waypoints_increasing = True
+        config_string = rospy.get_param("/traffic_light_config")
+        self.config = yaml.load(config_string)
 
-        self.state_count = 0
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection, queue_size=1)
+        #self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
+
+        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         rospy.spin()
 
     def pose_cb(self, msg):
-        self.pose = msg
+        if self.fullInitialized == False:
+            return
+
+        self.pose = msg 
         self.vehicle_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
         waypoint_distance = abs(self.vehicle_position - self.last_vehicle_position)
 
@@ -118,6 +118,10 @@ class TLDetector(object):
             rospy.loginfo('stopline_waypoint[%s] = %s' , i  , nextWaypoint)
             self.trafficLightWaypoint.append(nextWaypoint)
 
+        self.fullInitialized = True
+        rospy.loginfo('TL Detector fully initialized')
+        
+
     def traffic_cb(self, msg):
         self.lights = msg.lights
 
@@ -129,7 +133,8 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
-
+        if self.fullInitialized == False:
+            return
 
         self.total_frame_counter += 1
 
@@ -195,7 +200,7 @@ class TLDetector(object):
 
         elif self.state == TrafficLight.GREEN:
             # reset the red counter --> go!
-            self.FRAME_RATE = 3
+            self.FRAME_RATE = 4
             self.red_counter = 0
             self.last_wp = -1            
             self.last_state = self.state
@@ -203,7 +208,7 @@ class TLDetector(object):
             self.publishWaypoint(-1)
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
-            self.FRAME_RATE = 1
+            self.FRAME_RATE = 4
             self.red_counter += 1   
             self.last_wp = -1            
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
@@ -213,7 +218,7 @@ class TLDetector(object):
         else:
             # seems to be unknown detection..... --> go!
             # reset the red counter
-            self.FRAME_RATE = 3
+            self.FRAME_RATE = 4
             self.red_counter = 0
             self.last_wp = -1
             self.last_state = self.state
