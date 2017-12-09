@@ -12,6 +12,7 @@ import yaml
 import math
 import copy
 
+
 MIN_DISTANCE_TO_LIGHT  = 100
 LOOKAHEAD_WPS = 25 # Number of waypoints we will publish. You can change this number
 
@@ -41,6 +42,7 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_velocity',TwistStamped, self.current_vel_callback)
 
 
         config_string = rospy.get_param("/traffic_light_config")
@@ -60,6 +62,7 @@ class WaypointUpdater(object):
         # rospy.Subscriber('/traffic_waypoint_injection', TrafficLightDetection, self.traffic_cb)
 
         self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600. # m/s
+        self.deceleration_limit = rospy.get_param('/dbw_node/decel_limit') 
         rospy.logdebug("Speed limit = %s" , self.speed_limit)
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
@@ -123,9 +126,6 @@ class WaypointUpdater(object):
         else:
             self.distance_to_light = MIN_DISTANCE_TO_LIGHT + 1
             
-        self.stopping = False
-
-
         #rospy.logwarn("Current Pose: Point x:%d y:%d z:%d",c.x,c.y,c.z)
         #rospy.logwarn("Traffic Msg Rx:Light: %d Way Point id: %d",msg.state, msg.waypoint)
         #rospy.logwarn("Next TL Point: Point x:%d y:%d z:%d : Distance to Light:%d",tl.x,tl.y,tl.z,self.distance_to_light)
@@ -150,10 +150,6 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
-
-    def distance_between_pose(self, p1, p2):
-        x, y, z = p1.x - p2.x, p1.y - p2.y, p1.z - p2.z
-        return math.sqrt(x*x + y*y + z*z)
 
     def get_Euler_Angle(self,pose):
         """Returns the roll, pitch yaw angles from a Quaternion """
@@ -217,22 +213,6 @@ class WaypointUpdater(object):
 
         return min_idx
 
-    def decelerate(self, waypoints):
-        last = waypoints[-1]
-        last.twist.twist.linear.x = 0.
-        for wp in waypoints[:-1][::-1]:
-            #dist = self.distance_between_pose(wp.pose.pose.position, last.pose.pose.position)
-            #vel = math.sqrt(2 * MAX_DECEL * dist)
-            #if vel < 1.:
-            # vel = 0.
-            #    wp.twist.twist.linear.x = min(vel, wp.twist.twist.linear.x)
-
-            # Set velocity to zero, from this point onwards, pid will manage deceleration.
-            wp.twist.twist.linear.x = 0.
-
-
-        return waypoints
-
 
     #This function is used to select number of base waypoints to be added to the final waypoint msg to be published
     #Points are the nearest LOOKAHEAD_WPS points to the current position
@@ -242,6 +222,9 @@ class WaypointUpdater(object):
 
         if(self.base_way != None) and (self.current_pos != None):
 
+            #########################################################
+            # 1. Find out whether we should stop or not
+            #########################################################
             if ((self.next_tl_state == TrafficLight.YELLOW) or (self.next_tl_state == TrafficLight.RED)):
                 if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
                     self.stopping = True
@@ -252,17 +235,13 @@ class WaypointUpdater(object):
             else:
                 self.stopping = False
 
+
+
+            #########################################################
+            # 2. Calculate the next waypoints
+            #########################################################
             self.final_way = Lane()
             closest_idx = self.get_closest_point()
-            
-            #rospy.logwarn("Base Waypoint Length %s", base_way_len)
-            #rospy.logwarn("Closest Waypoint %s", closest_idx)
-
-            if (self.stopping == True):
-                #host_wp = copy.deepcopy(self.base_way.waypoints[closest_idx])
-                v = 0.
-                #a = -v*v/self.distance_to_light
-                #rospy.logwarn("A: %s", a)
 
             if self.waypoints_increasing == True:
                 sign = +1
@@ -273,33 +252,47 @@ class WaypointUpdater(object):
             #rospy.logwarn("Range start %s", closest_idx)
             #rospy.logwarn("Range end %s", closest_idx + sign * LOOKAHEAD_WPS)
             #rospy.logwarn("sign %s", sign)
+            dist = self.distance(self.base_way.waypoints , self.get_closest_point(), self.tl_waypoint_index) - 2
 
             for i in range(closest_idx, (closest_idx + sign * LOOKAHEAD_WPS), sign):
                 idx = i % self.base_way_length
                 #rospy.logwarn("new waypoint %s", idx)
                 wp = copy.deepcopy(self.base_way.waypoints[idx])
-                if (self.stopping == True):
-                    #wp.twist.twist.linear.x = max(0,v)
-                    wp.twist.twist.linear.x = 0
+
+                #########################################################
+                # 3. Set the appropriate speed for each waypoint
+                #########################################################
+                if (self.stopping == True and dist > 0.2):
+                    
+                    current_vel = self.latest_current_velocity_msg.twist.linear.x
+                    #new_vel = math.sqrt(current_vel - 1.1  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
+                    a  = current_vel*current_vel/(2*dist)  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
+                    #a = a/20 # 50ms is update rate  #Antonia: this is too weak for some reasons.....
+                    #rospy.logwarn("a = %s" , a)
+                    new_vel = (current_vel - a)
+                    new_vel = min(new_vel,self.speed_limit) # don't exceed max speed
+                    new_vel = max(new_vel,0) # don't provide negative speed
+                    #rospy.logwarn("Distance to next TL = %s , target-speed = %s", dist ,new_vel )
+
+                    if dist < 1.5 or new_vel < 0.01:
+                        wp.twist.twist.linear.x = 0
+                    else:
+                        wp.twist.twist.linear.x = new_vel
                     #v = wp.twist.twist.linear.x
                 else:
                     wp.twist.twist.linear.x = self.speed_limit
 
-                self.final_way.waypoints.append(wp)
+                #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
 
-            # List of base way points - ahead, they are loaded from base waypints, so
-            # are all set to the target velocity. The PID controller will manage accel.
-            # We only have to modify the speeds for cases where the light is red/yellow.
-            #if ((self.next_tl_state == 0) or (self.next_tl_state == 1)):
-            #    if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
-            #        self.final_way.waypoints = self.decelerate(self.final_way.waypoints)
-            #        rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
+                self.final_way.waypoints.append(wp)
 
             #rospy.logwarn("Publish Waypoints: %s", self.final_way.waypoints[0])
             self.final_waypoints_pub.publish(self.final_way)
 
+    
     def current_vel_callback(self, cb_msg):
         self.latest_current_velocity_msg = cb_msg
+        #rospy.logwarn("Last velocity = %s " ,  self.latest_current_velocity_msg.twist.linear.x)
 
 if __name__ == '__main__':
     try:

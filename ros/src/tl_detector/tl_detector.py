@@ -69,7 +69,7 @@ class TLDetector(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection, queue_size=1)
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection)
         #self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
 
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
