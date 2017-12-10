@@ -12,16 +12,12 @@ import yaml
 import math
 import copy
 
-ADAPTIVE_BRAKE_THRESHOLD = 0.1
-ADAPTIVE_BRAKE_INCREMENT = 0.005
+#ADAPTIVE_BRAKE_THRESHOLD = 0.1
+#ADAPTIVE_BRAKE_INCREMENT = 0.005
 COMFORT_BRAKING_BUFFER = 0.5
-SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12
-MIN_DISTANCE_TO_LIGHT  = 100
+SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
+MIN_DISTANCE_TO_LIGHT  = 120
 LOOKAHEAD_WPS = 25 # Number of waypoints we will publish. You can change this number
-
-#MPH_TO_MPS = 0.44704 # 0.44704 is factor from miles per hour --> meter per second
-#MAX_SPEED_SIM = 25 * MPH_TO_MPS # maximum speed in simulator is 25 miles per hour
-#MAX_SPEED_CARLA = 10 * MPH_TO_MPS # maximum speed on Carla is 10 miles per hour
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -62,7 +58,7 @@ class WaypointUpdater(object):
         else:
             # assume we are in Carla mode
             self.mode = "CARLA" 
-            self.waypoints_increasing = False
+            self.waypoints_increasing = False #TODO: Antonia: verify whether this is really the case!
 
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
