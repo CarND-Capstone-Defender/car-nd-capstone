@@ -12,11 +12,7 @@ import yaml
 import math
 import copy
 
-#ADAPTIVE_BRAKE_THRESHOLD = 0.1
-#ADAPTIVE_BRAKE_INCREMENT = 0.005
-COMFORT_BRAKING_BUFFER = 0.5
-SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
-MIN_DISTANCE_TO_LIGHT  = 120
+MIN_DISTANCE_TO_LIGHT  = 140
 LOOKAHEAD_WPS = 25 # Number of waypoints we will publish. You can change this number
 
 '''
@@ -55,10 +51,14 @@ class WaypointUpdater(object):
             # assume we are in simulator mode
             self.mode = "SIM" 
             self.waypoints_increasing = True
+            self.STOPLINE_BRAKING_BUFFER = 1.5 # TODO: this has to be tuned eventually..
+            self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
         else:
             # assume we are in Carla mode
             self.mode = "CARLA" 
             self.waypoints_increasing = False #TODO: Antonia: verify whether this is really the case!
+            self.STOPLINE_BRAKING_BUFFER = 4 # TODO: this has to be tuned eventually..
+            self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
 
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
@@ -76,6 +76,9 @@ class WaypointUpdater(object):
         self.latest_current_velocity_msg = None
 
         self.adaptiveBrakeFactor = 1.0
+
+        self.cycleCounter = 0
+
 
         #rate is same as DBW node rospy rate
         rate = rospy.Rate(50)
@@ -119,7 +122,12 @@ class WaypointUpdater(object):
             self.distance_to_light = math.sqrt(pow(tl.x - c.x,2) + pow(tl.y - c.y,2))
         else:
             self.distance_to_light = MIN_DISTANCE_TO_LIGHT + 1
-            
+
+        #dist = self.distance(self.base_way.waypoints , self.get_closest_point() ,self.tl_waypoint_index)
+        #rospy.logwarn("Car Pos = %s", self.get_closest_point() )            
+        #rospy.logwarn("TL Pos = %s", self.tl_waypoint_index )            
+        rospy.logwarn("Distance to next TL = %s", self.distance_to_light )            
+        #rospy.logwarn("DIST to next TL = %s", dist)            
         #rospy.logwarn("Current Pose: Point x:%d y:%d z:%d",c.x,c.y,c.z)
         #rospy.logwarn("Traffic Msg Rx:Light: %d Way Point id: %d",msg.state, msg.waypoint)
         #rospy.logwarn("Next TL Point: Point x:%d y:%d z:%d : Distance to Light:%d",tl.x,tl.y,tl.z,self.distance_to_light)
@@ -140,9 +148,15 @@ class WaypointUpdater(object):
     def distance(self, waypoints, wp1, wp2):
         dist = 0
         dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
-        for i in range(wp1, wp2+1):
-            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
-            wp1 = i
+
+        if self.waypoints_increasing == True:
+            sign = +1
+        else:
+            sign = -1
+        
+        for i in range(wp1, sign * (wp2+1) % self.base_way_length,sign):
+            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i % self.base_way_length].pose.pose.position)
+            wp1 = i % self.base_way_length
         return dist
 
     def get_Euler_Angle(self,pose):
@@ -190,7 +204,6 @@ class WaypointUpdater(object):
                 min_delta = delta
                 min_idx = i
 
-
         is_in_front = self.is_waypoint_front(self.current_pos.pose, self.base_way.waypoints[min_idx])
 
         if self.waypoints_increasing == True:
@@ -214,6 +227,7 @@ class WaypointUpdater(object):
         if self.tl_detector_running == False:
             return
 
+        self.cycleCounter += 1
         if(self.base_way != None) and (self.current_pos != None):
 
             #########################################################
@@ -231,7 +245,7 @@ class WaypointUpdater(object):
                     #Is it possible to pass the traffic light in time!?
                     # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
                     current_vel = self.latest_current_velocity_msg.twist.linear.x
-                    brakingDistance = abs(current_vel*current_vel / (2 * (abs(self.deceleration_limit) - COMFORT_BRAKING_BUFFER)))
+                    brakingDistance = abs(current_vel*current_vel / (2 * (abs(self.deceleration_limit) - 0.5)))
 
                     if brakingDistance > self.distance_to_light:
                         #rospy.logwarn("DON'T STOP AT YELLOW: Braking distance: %s > Distance to light: %s", brakingDistance , self.distance_to_light)
@@ -262,8 +276,6 @@ class WaypointUpdater(object):
             #rospy.logwarn("Range start %s", closest_idx)
             #rospy.logwarn("Range end %s", closest_idx + sign * LOOKAHEAD_WPS)
             #rospy.logwarn("sign %s", sign)
-            dist = self.distance(self.base_way.waypoints , self.get_closest_point(), self.tl_waypoint_index) - 1
-
             for i in range(closest_idx, (closest_idx + sign * LOOKAHEAD_WPS), sign):
                 idx = i % self.base_way_length
                 #rospy.logwarn("new waypoint %s", idx)
@@ -272,11 +284,13 @@ class WaypointUpdater(object):
                 #########################################################
                 # 3. Set the appropriate speed for each waypoint
                 #########################################################
-                if (self.stopping == True and dist > 0.2):
-                    current_vel = self.latest_current_velocity_msg.twist.linear.x
-                    brakingDistance = abs(current_vel*current_vel / (2 * (abs(self.deceleration_limit) - COMFORT_BRAKING_BUFFER)))
+                if (self.stopping == True and self.distance_to_light > 0.2):
+                    if self.mode == "CARLA":
+                        current_vel = 2  #TODO: Antonia self.latest_current_velocity_msg.twist.linear.x is not available in CARLA !?
+                    else:
+                        current_vel = self.latest_current_velocity_msg.twist.linear.x
 
-
+                    #brakingDistance = abs(current_vel*current_vel / (2 * (abs(self.deceleration_limit) - 0.5)))
                     #if brakingDistance/dist > ADAPTIVE_BRAKE_THRESHOLD:
                     #    if (self.adaptiveBrakeFactor > 0.8):
                     #        self.adaptiveBrakeFactor = self.adaptiveBrakeFactor - ADAPTIVE_BRAKE_INCREMENT
@@ -284,18 +298,23 @@ class WaypointUpdater(object):
                     #    rospy.logwarn("Increase braking power, adaptiveBrakeFactor = %s" , self.adaptiveBrakeFactor)    
 
                     #new_vel = math.sqrt(current_vel - 1.1  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
-                    a  = current_vel*current_vel/(2*dist)  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
-                    a = a/20 # 50ms is update rate  #TODO: Antonia: this is too weak for some reasons.....
+                    a  = current_vel*current_vel/(2*self.distance_to_light)  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
+                    #a = a/20 # 50ms is update rate  #TODO: Antonia: this is too weak for some reasons.....
                     #rospy.logwarn("a = %s" , a)
                     new_vel = (current_vel - a) * self.adaptiveBrakeFactor
                     new_vel = min(new_vel,self.speed_limit) # don't exceed max speed
                     new_vel = max(new_vel,0) # don't provide negative speed
 
                     # ensure a smooth approach until the stopline
-                    if dist < 1.5:
+                    if self.distance_to_light < self.STOPLINE_BRAKING_BUFFER:
                         wp.twist.twist.linear.x = 0
                     else:
-                        wp.twist.twist.linear.x = max(new_vel, SMOOTH_APPROACH_TO_STOPLINE_FACTOR * (dist - 1.5))
+                        if self.mode == "CARLA":
+                           wp.twist.twist.linear.x = abs(self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR * (self.distance_to_light - self.STOPLINE_BRAKING_BUFFER))
+                        else:                        
+                            wp.twist.twist.linear.x = max(new_vel, 
+                                                  abs(self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR * (self.distance_to_light - self.STOPLINE_BRAKING_BUFFER)))
+                        
                         #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
 
                     #rospy.logwarn("Distance to next TL = %s , target-speed = %s", dist ,wp.twist.twist.linear.x )
@@ -303,7 +322,8 @@ class WaypointUpdater(object):
                     wp.twist.twist.linear.x = self.speed_limit #TODO: Antonia: this is pretty slow acceleration for some reason.....
                     self.adaptiveBrakeFactor = 1.0  #reset the adaptive brake factor
 
-                #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
+                #if (self.cycleCounter % 50 == 0):
+                    #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
 
                 self.final_way.waypoints.append(wp)
 
