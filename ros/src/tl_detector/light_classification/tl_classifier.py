@@ -26,21 +26,8 @@ class TLClassifier(object):
 
         self.bridge = CvBridge()
 
-        # Use the number of traffic lights to be published in order to find
-        # out whether we are in simulator mode or not 
-        # assumption here: Carla has < 3 traffic lights (#TODO: bad hack I know...)
-        config_string = rospy.get_param("/traffic_light_config")
-
-        if config_string == None:
-            rospy.logerror('Error: topic /traffic_light_config was not configured yet - cannot load model now in tl_classifier.__init__')
-
-        self.config = yaml.load(config_string)
-        stop_line_positions = self.config['stop_line_positions']
-
-        rospy.logdebug('Could successfully load topic /traffic_light_config')
-        rospy.logdebug('Number of stop line positions: %s' , len(stop_line_positions))
-
-        if (len(stop_line_positions) > 2):
+        self.mode = self.getMode()
+        if (self.mode == "SIM"):
             # assume we are in simulator mode
             rospy.loginfo('Assuming SIM mode...')
             self.mode = "SIM" 
@@ -86,6 +73,28 @@ class TLClassifier(object):
         self.publish_trafficlight_image = rospy.Publisher("/tl_classifier/image_raw/compressed", CompressedImage, queue_size=4)      
         rospy.logdebug('Publishing ROS message /tl_classifier/image_raw/compressed')          
                 
+    def getMode(self):
+        speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600. # m/s
+       
+        # CARLA track has speed limit 10
+        if (speed_limit > 10):
+            # assume we are in simulator mode
+            rospy.logdebug("Speed limit < 10 - assuming simulator mode")
+            mode = "SIM" 
+        else:
+            # assume we are in Carla mode - but is it simulator churchlot or real drive!?
+            is_site_configured = rospy.has_param("/grasshopper_calibration_yaml")
+
+            if is_site_configured == False:
+                rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
+                mode = "SIM_CHURCHLOT" 
+            else:
+                rospy.logdebug("No grasshopper found - assuming churchlot mode")
+                mode = "CARLA" 
+        
+        rospy.logdebug("Identified mode %s" , mode)        
+        return mode        
+               
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image

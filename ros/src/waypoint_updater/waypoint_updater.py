@@ -34,6 +34,7 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
+        self.initialized = False
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -46,25 +47,22 @@ class WaypointUpdater(object):
         self.deceleration_limit = rospy.get_param('/dbw_node/decel_limit') 
         rospy.logdebug("Speed limit = %s" , self.speed_limit)
 
-        # CARLA track has only 1 traffic light
-        if (self.speed_limit > 10):
-            # assume we are in simulator mode
-            self.mode = "SIM" 
+        self.mode = self.getMode()
+
+        # CARLA track has speed limit 10
+        if self.mode == "SIM":
             self.waypoints_increasing = True
             self.STOPLINE_BRAKING_BUFFER = 1.5 # TODO: this has to be tuned eventually..
             self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
         else:
-            # assume we are in Carla mode
-            self.mode = "CARLA" 
-            self.waypoints_increasing = False #TODO: Antonia: verify whether this is really the case!
-            self.STOPLINE_BRAKING_BUFFER = 4 # TODO: this has to be tuned eventually..
+            self.waypoints_increasing = True #TODO: Antonia: verify whether this is really the case!
+            self.STOPLINE_BRAKING_BUFFER = 0.5 # TODO: this has to be tuned eventually..
             self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
-
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
         self.current_pos = None
-        self.base_way = None
+        #self.base_way = None
         self.tl_position = None
         self.tl_waypoint_index = -1
         self.distance_to_light = 0
@@ -87,6 +85,28 @@ class WaypointUpdater(object):
             self.do_update()
             rate.sleep()
 
+    def getMode(self):
+        speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600. # m/s
+       
+        # CARLA track has speed limit 10
+        if (speed_limit > 10):
+            # assume we are in simulator mode
+            rospy.logdebug("Speed limit < 10 - assuming simulator mode")
+            mode = "SIM" 
+        else:
+            # assume we are in Carla mode - but is it simulator churchlot or real drive!?
+            is_site_configured = rospy.has_param("/grasshopper_calibration_yaml")
+
+            if is_site_configured == False:
+                rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
+                mode = "SIM_CHURCHLOT" 
+            else:
+                rospy.logdebug("No grasshopper found - assuming churchlot mode")
+                mode = "CARLA" 
+        
+        rospy.logwarn("Identified mode %s" , mode)        
+        return mode  
+
     def pose_cb(self, msg):
         #save msg of current position to it's variable
         self.current_pos = msg
@@ -98,16 +118,30 @@ class WaypointUpdater(object):
             if(self.tl_waypoint_index != -1):
                 self.distance_to_light = math.sqrt(pow(tl.x - c.x,2) + pow(tl.y - c.y,2))
             else:
-                self.distance_to_light = 300
+                self.distance_to_light = MIN_DISTANCE_TO_LIGHT + 1
 
     def waypoints_cb(self, waypoints):
         #save msg of base waypoints to it's variable
         self.base_way = waypoints
         self.base_way_length = len(self.base_way.waypoints)
-        rospy.logdebug("Base Waypoint Length %s", self.base_way_length)
+        rospy.logwarn("Base Waypoint Length %s", self.base_way_length)
+        self.initialized = True
         
 
     def traffic_cb(self, msg):
+        if self.initialized == False:
+            rospy.logwarn("DEBUG: Waypoints not initialized")
+            return
+        elif self.base_way == None:
+            rospy.logwarn("DEBUG: self.base_way == None")
+            return
+        elif self.base_way.waypoints == None:
+            rospy.logwarn("DEBUG: self.base_way.waypoints == None")
+            return
+        elif len(self.base_way.waypoints) == 0:
+            rospy.logwarn("DEBUG: len(self.base_way.waypoints) == 0")
+            return
+
         self.tl_detector_running = True
         self.next_tl_state = msg.state
         #rospy.logwarn("Setting Traffic State to %s",self.next_tl_state)
@@ -121,10 +155,10 @@ class WaypointUpdater(object):
         if(self.tl_waypoint_index != -1):
             self.distance_to_light = math.sqrt(pow(tl.x - c.x,2) + pow(tl.y - c.y,2))
         else:
-            self.distance_to_light = MIN_DISTANCE_TO_LIGHT + 1
+            self.distance_to_light = MIN_DISTANCE_TO_LIGHT 
 
         #dist = self.distance(self.base_way.waypoints , self.get_closest_point() ,self.tl_waypoint_index)
-        #rospy.logwarn("Car Pos = %s", self.get_closest_point() )            
+        rospy.logwarn("Car Pos = %s", self.get_closest_point() )            
         #rospy.logwarn("TL Pos = %s", self.tl_waypoint_index )            
         rospy.logwarn("Distance to next TL = %s", self.distance_to_light )            
         #rospy.logwarn("DIST to next TL = %s", dist)            
@@ -144,20 +178,6 @@ class WaypointUpdater(object):
 
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
-
-    def distance(self, waypoints, wp1, wp2):
-        dist = 0
-        dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
-
-        if self.waypoints_increasing == True:
-            sign = +1
-        else:
-            sign = -1
-        
-        for i in range(wp1, sign * (wp2+1) % self.base_way_length,sign):
-            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i % self.base_way_length].pose.pose.position)
-            wp1 = i % self.base_way_length
-        return dist
 
     def get_Euler_Angle(self,pose):
         """Returns the roll, pitch yaw angles from a Quaternion """
@@ -203,6 +223,9 @@ class WaypointUpdater(object):
             if(delta < min_delta):
                 min_delta = delta
                 min_idx = i
+
+        if self.mode == "SIM_CHURCHLOT" or self.mode == "CARLA": 
+            return min_idx
 
         is_in_front = self.is_waypoint_front(self.current_pos.pose, self.base_way.waypoints[min_idx])
 
@@ -285,8 +308,9 @@ class WaypointUpdater(object):
                 # 3. Set the appropriate speed for each waypoint
                 #########################################################
                 if (self.stopping == True and self.distance_to_light > 0.2):
-                    if self.mode == "CARLA":
+                    if self.mode == "SIM_CHURCHLOT" or self.mode == "CARLA":
                         current_vel = 2  #TODO: Antonia self.latest_current_velocity_msg.twist.linear.x is not available in CARLA !?
+                        #current_vel = self.latest_current_velocity_msg.twist.linear.x
                     else:
                         current_vel = self.latest_current_velocity_msg.twist.linear.x
 
@@ -309,22 +333,16 @@ class WaypointUpdater(object):
                     if self.distance_to_light < self.STOPLINE_BRAKING_BUFFER:
                         wp.twist.twist.linear.x = 0
                     else:
-                        if self.mode == "CARLA":
-                           wp.twist.twist.linear.x = abs(self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR * (self.distance_to_light - self.STOPLINE_BRAKING_BUFFER))
-                        else:                        
-                            wp.twist.twist.linear.x = max(new_vel, 
+                        wp.twist.twist.linear.x = max(new_vel, 
                                                   abs(self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR * (self.distance_to_light - self.STOPLINE_BRAKING_BUFFER)))
                         
                         #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
-
-                    #rospy.logwarn("Distance to next TL = %s , target-speed = %s", dist ,wp.twist.twist.linear.x )
                 else:
                     wp.twist.twist.linear.x = self.speed_limit #TODO: Antonia: this is pretty slow acceleration for some reason.....
                     self.adaptiveBrakeFactor = 1.0  #reset the adaptive brake factor
 
                 #if (self.cycleCounter % 50 == 0):
                     #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
-
                 self.final_way.waypoints.append(wp)
 
             #rospy.logwarn("Publish Waypoints: %s", self.final_way.waypoints[0])

@@ -65,6 +65,7 @@ class TLDetector(object):
         # List of positions that correspond to the line to stop in front of for a given intersection
         self.trafficLightWaypoint = []
 
+        self.mode = self.getMode()
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
@@ -79,26 +80,60 @@ class TLDetector(object):
 
         rospy.spin()
 
+    def getMode(self):
+        speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600. # m/s
+       
+        # CARLA track has speed limit 10
+        if (speed_limit > 10):
+            # assume we are in simulator mode
+            rospy.logdebug("Speed limit < 10 - assuming simulator mode")
+            mode = "SIM" 
+        else:
+            # assume we are in Carla mode - but is it simulator churchlot or real drive!?
+            is_site_configured = rospy.has_param("/grasshopper_calibration_yaml")
+
+            if is_site_configured == False:
+                rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
+                mode = "SIM_CHURCHLOT" 
+            else:
+                rospy.logdebug("No grasshopper found - assuming churchlot mode")
+                mode = "CARLA" 
+        
+        rospy.logdebug("Identified mode %s" , mode)        
+        return mode        
+
+
     def pose_cb(self, msg):
         if self.fullInitialized == False:
             return
 
         self.pose = msg 
         self.vehicle_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
+        #rospy.logwarn('vehicle_position = %s' , self.vehicle_position)
+
         waypoint_distance = abs(self.vehicle_position - self.last_vehicle_position)
 
         if self.vehicle_position == self.last_vehicle_position:
             rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
             return
 
-        if self.vehicle_position > self.last_vehicle_position and waypoint_distance < 20:
+        if self.vehicle_position > self.last_vehicle_position:
             self.waypoints_increasing = True
-        elif self.vehicle_position < self.last_vehicle_position and waypoint_distance < 20:
+        elif self.vehicle_position < self.last_vehicle_position:
             self.waypoints_increasing = False
 
         self.last_vehicle_position = self.vehicle_position
 
         rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
+
+        #ANTONIA: Use these 5 lines in order to test the churchlot in the simulator 
+        #         otherwise you won't get the tl_detector and thus the waypoint updater
+        #         because in this churchlot mode the simulator doesn't provide images...
+        if self.mode == "SIM_CHURCHLOT":
+            if self.last_vehicle_position > 49 or self.last_vehicle_position < 3:
+                self.publishWaypoint(58,TrafficLight.RED)
+            else:
+                self.publishWaypoint(58,TrafficLight.GREEN)
 
 
     def waypoints_cb(self, lane):
@@ -182,7 +217,7 @@ class TLDetector(object):
                     # with the high inaccuracy in calculation of nearest waypoint
                     # within the area of waypoint 50...60...0...3
                     ######################
-                    if len(self.config['stop_line_positions']) < 3 and (self.vehicle_position > 51 or self.vehicle_position <3):
+                    if self.mode == "CARLA" and (self.vehicle_position > 51 or self.vehicle_position <3):
                         self.last_wp = self.light_wp
                         #rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
                         rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
@@ -333,6 +368,15 @@ class TLDetector(object):
         else:
             detectorMsg.state = TrafficLight.UNKNOWN
 
+        if detectorMsg.state == TrafficLight.GREEN:
+            rospy.logwarn('Publishing waypoint %s with color GREEN ' , detectorMsg.waypoint)
+        elif detectorMsg.state == TrafficLight.RED:
+            rospy.logwarn('Publishing waypoint %s with color RED ' , detectorMsg.waypoint)
+        elif detectorMsg.state == TrafficLight.YELLOW:
+            rospy.logwarn('Publishing waypoint %s with color YELLOW ' , detectorMsg.waypoint)
+        elif detectorMsg.state == TrafficLight.UNKNOWN:
+            rospy.logwarn('Publishing waypoint %s with color UNKNOWN ' , detectorMsg.waypoint)
+            
         self.upcoming_red_light_pub.publish(detectorMsg)
 
 
