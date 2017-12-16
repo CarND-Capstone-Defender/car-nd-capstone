@@ -52,7 +52,7 @@ class WaypointUpdater(object):
         # CARLA track has speed limit 10
         if self.mode == "SIM":
             self.waypoints_increasing = True
-            self.STOPLINE_BRAKING_BUFFER = 1.5 # TODO: this has to be tuned eventually..
+            self.STOPLINE_BRAKING_BUFFER = 1.0 # TODO: this has to be tuned eventually..
             self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
         else:
             self.waypoints_increasing = True #TODO: Antonia: verify whether this is really the case!
@@ -101,10 +101,10 @@ class WaypointUpdater(object):
                 rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
                 mode = "SIM_CHURCHLOT" 
             else:
-                rospy.logdebug("No grasshopper found - assuming churchlot mode")
+                rospy.logdebug("Grasshopper found - assuming real-drive mode")
                 mode = "CARLA" 
         
-        rospy.logwarn("Identified mode %s" , mode)        
+        rospy.loginfo("Identified mode %s" , mode)        
         return mode  
 
     def pose_cb(self, msg):
@@ -118,13 +118,13 @@ class WaypointUpdater(object):
             if(self.tl_waypoint_index != -1):
                 self.distance_to_light = math.sqrt(pow(tl.x - c.x,2) + pow(tl.y - c.y,2))
             else:
-                self.distance_to_light = MIN_DISTANCE_TO_LIGHT + 1
+                self.distance_to_light = MIN_DISTANCE_TO_LIGHT
 
     def waypoints_cb(self, waypoints):
         #save msg of base waypoints to it's variable
         self.base_way = waypoints
         self.base_way_length = len(self.base_way.waypoints)
-        rospy.logwarn("Base Waypoint Length %s", self.base_way_length)
+        rospy.logdebug("Base Waypoint Length %s", self.base_way_length)
         self.initialized = True
         
 
@@ -158,9 +158,9 @@ class WaypointUpdater(object):
             self.distance_to_light = MIN_DISTANCE_TO_LIGHT 
 
         #dist = self.distance(self.base_way.waypoints , self.get_closest_point() ,self.tl_waypoint_index)
-        rospy.logwarn("Car Pos = %s", self.get_closest_point() )            
+        rospy.loginfo("Car Pos = %s", self.get_closest_point() )            
         #rospy.logwarn("TL Pos = %s", self.tl_waypoint_index )            
-        rospy.logwarn("Distance to next TL = %s", self.distance_to_light )            
+        rospy.loginfo("Distance to next TL = %s", self.distance_to_light )            
         #rospy.logwarn("DIST to next TL = %s", dist)            
         #rospy.logwarn("Current Pose: Point x:%d y:%d z:%d",c.x,c.y,c.z)
         #rospy.logwarn("Traffic Msg Rx:Light: %d Way Point id: %d",msg.state, msg.waypoint)
@@ -227,6 +227,9 @@ class WaypointUpdater(object):
         if self.mode == "SIM_CHURCHLOT" or self.mode == "CARLA": 
             return min_idx
 
+        # filtering of waypoints is only required for simulator mode
+        # because the waypoints are pretty tightly packed and you
+        # could easily take a waypoint behind the vehicle.....
         is_in_front = self.is_waypoint_front(self.current_pos.pose, self.base_way.waypoints[min_idx])
 
         if self.waypoints_increasing == True:
@@ -257,14 +260,14 @@ class WaypointUpdater(object):
             # 1. Find out whether we should stop or not
             #########################################################
             if self.next_tl_state == TrafficLight.RED:
-                if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
+                if (self.distance_to_light < MIN_DISTANCE_TO_LIGHT):
                     self.stopping = True
                     #rospy.logwarn("Decelerate: Distance to light: %d", self.distance_to_light)
 
                 else:
                     self.stopping = False
             elif self.next_tl_state == TrafficLight.YELLOW:
-                if (self.distance_to_light <= MIN_DISTANCE_TO_LIGHT):
+                if (self.distance_to_light < MIN_DISTANCE_TO_LIGHT):
                     #Is it possible to pass the traffic light in time!?
                     # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
                     current_vel = self.latest_current_velocity_msg.twist.linear.x
@@ -308,7 +311,7 @@ class WaypointUpdater(object):
                 # 3. Set the appropriate speed for each waypoint
                 #########################################################
                 if (self.stopping == True and self.distance_to_light > 0.2):
-                    if self.mode == "SIM_CHURCHLOT" or self.mode == "CARLA":
+                    if self.mode == "CARLA":
                         current_vel = 2  #TODO: Antonia self.latest_current_velocity_msg.twist.linear.x is not available in CARLA !?
                         #current_vel = self.latest_current_velocity_msg.twist.linear.x
                     else:

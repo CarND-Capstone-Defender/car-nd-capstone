@@ -55,7 +55,7 @@ class WaypointLoader(object):
 
                 waypoints.append(p)
         
-        rospy.logwarn('Waypoint Loaded %s' , len(waypoints))
+        rospy.loginfo('Waypoint Loaded %s' , len(waypoints))
         return self.decelerate(waypoints)
 
     def distance(self, p1, p2):

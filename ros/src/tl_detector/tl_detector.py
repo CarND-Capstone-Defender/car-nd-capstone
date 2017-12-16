@@ -34,7 +34,7 @@ class TLDetector(object):
         #   2 = only every second frame is taken
         #   3 = only every third frame is taken
         #   .....
-        self.FRAME_RATE = 2
+        self.FRAME_RATE = 3
 
 
         #rospy.init_node('tl_detector' , log_level=rospy.DEBUG)
@@ -70,7 +70,7 @@ class TLDetector(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection)
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', TrafficLightDetection , queue_size=1)
         #self.upcoming_traffic_light_injection = rospy.Publisher('/traffic_waypoint_injection', TrafficLightDetection, queue_size=1)
 
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -96,10 +96,10 @@ class TLDetector(object):
                 rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
                 mode = "SIM_CHURCHLOT" 
             else:
-                rospy.logdebug("No grasshopper found - assuming churchlot mode")
+                rospy.logdebug("Grasshopper found - assuming real-drive mode")
                 mode = "CARLA" 
         
-        rospy.logdebug("Identified mode %s" , mode)        
+        rospy.loginfo("Identified mode %s" , mode)        
         return mode        
 
 
@@ -114,13 +114,15 @@ class TLDetector(object):
         waypoint_distance = abs(self.vehicle_position - self.last_vehicle_position)
 
         if self.vehicle_position == self.last_vehicle_position:
-            rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
+            #rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
             return
 
-        if self.vehicle_position > self.last_vehicle_position:
+        if self.vehicle_position > self.last_vehicle_position or (self.vehicle_position < 10 and self.last_vehicle_position > len(self.waypoints)-10):
             self.waypoints_increasing = True
-        elif self.vehicle_position < self.last_vehicle_position:
+        elif self.vehicle_position < self.last_vehicle_position :
             self.waypoints_increasing = False
+            rospy.logwarn('Waypoint increasing = %s' , self.waypoints_increasing)
+            rospy.logwarn('Current Waypoint = %s , Last Waypoint = %s' , self.vehicle_position , self.last_vehicle_position)
 
         self.last_vehicle_position = self.vehicle_position
 
@@ -207,7 +209,7 @@ class TLDetector(object):
                     if self.light_wp <= self.last_wp+3 or self.last_wp == -1: 
                         # don't report red in case we already crossed the traffic light stop line !!
                         self.last_wp = self.light_wp
-                        rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
+                        rospy.logdebug('WP increasing - finally publishing RED light at waypoint %s' , self.light_wp)
                         self.publishWaypoint(self.light_wp,self.state)
                         # self.upcoming_red_light_pub.publish(Int32(self.light_wp))
                 else:
@@ -220,7 +222,7 @@ class TLDetector(object):
                     if self.mode == "CARLA" and (self.vehicle_position > 51 or self.vehicle_position <3):
                         self.last_wp = self.light_wp
                         #rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
-                        rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
+                        rospy.logdebug('CARLA HACK: Finally publishing RED light at waypoint %s' , self.light_wp)
                         #self.upcoming_red_light_pub.publish(Int32(0))
                         self.publishWaypoint(self.light_wp,self.state)
                         return
@@ -229,35 +231,35 @@ class TLDetector(object):
                     ######################
                         
                     self.last_wp = self.light_wp
-                    rospy.loginfo('Finally publishing RED light at waypoint %s' , self.light_wp)
+                    rospy.loginfo('WP decreasing - finally publishing RED light at waypoint %s' , self.light_wp)
                     self.publishWaypoint(self.light_wp,self.state)
                                             
 
         elif self.state == TrafficLight.GREEN:
             # reset the red counter --> go!
-            self.FRAME_RATE = 4
+            #self.FRAME_RATE = 4
             self.red_counter = 0
             self.last_wp = -1            
             self.last_state = self.state
-            rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
+            rospy.logdebug('Go GREEN - finally publishing RED light at waypoint %s' , -1)
             self.publishWaypoint(-1,self.state)
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
-            self.FRAME_RATE = 4
+            #self.FRAME_RATE = 4
             self.red_counter += 1   
             self.last_wp = -1            
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
             self.last_state = self.state
-            rospy.loginfo('Finally publishing YELLOW light at waypoint %s' , -1)
+            rospy.logdebug('Go YELLOW - finally publishing YELLOW light at waypoint %s' , -1)
             self.publishWaypoint(self.light_wp, self.state)
         else:
             # seems to be unknown detection..... --> go!
             # reset the red counter
-            self.FRAME_RATE = 4
+            #self.FRAME_RATE = 4
             self.red_counter = 0
             self.last_wp = -1
             self.last_state = self.state
-            rospy.loginfo('Finally publishing RED light at waypoint %s' , -1)
+            rospy.logdebug('Go UNKNOWN - finally publishing RED light at waypoint %s' , -1)
             self.publishWaypoint(-1,self.state)
 
     def get_closest_waypoint(self, posx , posy):
@@ -307,7 +309,7 @@ class TLDetector(object):
     def getWaypointsUntilNextStopline(self):
         # 1) First of all get the current vehicle position
         car_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
-        rospy.logdebug('Car position: %s' , car_position)
+        #rospy.logdebug('Car position: %s' , car_position)
 
         # 2) now calculate the number of waypoints until the next traffic light stopline
         waypointUntilNextStopline = -1
@@ -334,7 +336,7 @@ class TLDetector(object):
     def getClosestTrafficLightWaypoint(self):
         # 1) First of all get the current vehicle position
         car_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
-        rospy.logdebug('Car position: %s' , car_position)
+        #rospy.logdebug('Car position: %s' , car_position)
 
         # start with the first traffic light waypoint
 
@@ -369,13 +371,13 @@ class TLDetector(object):
             detectorMsg.state = TrafficLight.UNKNOWN
 
         if detectorMsg.state == TrafficLight.GREEN:
-            rospy.logwarn('Publishing waypoint %s with color GREEN ' , detectorMsg.waypoint)
+            rospy.loginfo('Publishing waypoint %s with color GREEN ' , detectorMsg.waypoint)
         elif detectorMsg.state == TrafficLight.RED:
-            rospy.logwarn('Publishing waypoint %s with color RED ' , detectorMsg.waypoint)
+            rospy.loginfo('Publishing waypoint %s with color RED ' , detectorMsg.waypoint)
         elif detectorMsg.state == TrafficLight.YELLOW:
-            rospy.logwarn('Publishing waypoint %s with color YELLOW ' , detectorMsg.waypoint)
+            rospy.loginfo('Publishing waypoint %s with color YELLOW ' , detectorMsg.waypoint)
         elif detectorMsg.state == TrafficLight.UNKNOWN:
-            rospy.logwarn('Publishing waypoint %s with color UNKNOWN ' , detectorMsg.waypoint)
+            rospy.loginfo('Publishing waypoint %s with color UNKNOWN ' , detectorMsg.waypoint)
             
         self.upcoming_red_light_pub.publish(detectorMsg)
 

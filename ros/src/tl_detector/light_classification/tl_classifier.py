@@ -27,9 +27,9 @@ class TLClassifier(object):
         self.bridge = CvBridge()
 
         self.mode = self.getMode()
-        if (self.mode == "SIM"):
+        if (self.mode == "SIM" or self.mode == "SIM_CHURCHLOT"):
             # assume we are in simulator mode
-            rospy.loginfo('Assuming SIM mode...')
+            rospy.logdebug('Assuming SIM mode...try to load mobilenet_frozen_sim')
             self.mode = "SIM" 
             self.ssd_mobilenet_model = 'light_classification/mobilenet_frozen_sim/frozen_inference_graph.pb'
             label_map = label_map_util.load_labelmap('light_classification/mobilenet_frozen_sim/label_map.pbtxt')
@@ -37,7 +37,7 @@ class TLClassifier(object):
             rospy.logdebug('Loading label map successfully from light_classification/mobilenet_frozen_sim/label_map.pbtxt')
         else:
             # assume we are in Carla mode
-            rospy.loginfo('Assuming CARLA mode...')
+            rospy.logdebug('Assuming Real-Drive mode... try to load mobilenet_frozen_real')
             self.mode = "CARLA" 
             self.ssd_mobilenet_model = 'light_classification/mobilenet_frozen_real/frozen_inference_graph.pb'
             label_map = label_map_util.load_labelmap('light_classification/mobilenet_frozen_real/label_map.pbtxt')
@@ -89,7 +89,7 @@ class TLClassifier(object):
                 rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
                 mode = "SIM_CHURCHLOT" 
             else:
-                rospy.logdebug("No grasshopper found - assuming churchlot mode")
+                rospy.logdebug("Grasshopper found - assuming real-drive mode")
                 mode = "CARLA" 
         
         rospy.logdebug("Identified mode %s" , mode)        

@@ -7,8 +7,8 @@
     <include file="$(find twist_controller)/launch/dbw_sim.launch"/>
 
     <!--Waypoint Loader: use waypoint_loader_site.launch for churchlot simulator mode-->
-   <include file="$(find waypoint_loader)/launch/waypoint_loader.launch"/> 
-   <!--<include file="$(find waypoint_loader)/launch/waypoint_loader_site.launch"/> -->
+    <include file="$(find waypoint_loader)/launch/waypoint_loader.launch"/> 
+    <!--<include file="$(find waypoint_loader)/launch/waypoint_loader_site.launch"/> -->
 
 
     <!--Waypoint Follower Node -->
@@ -21,7 +21,7 @@
     <include file="$(find tl_detector)/launch/tl_detector.launch"/>
 
     <!--Traffic Light Locations and Camera Config:  use site_traffic_light_config.yaml for churchlot simulator mode-->
-    <param name="traffic_light_config" textfile="$(find tl_detector)/sim_traffic_light_config.yaml" /> 
+    <param name="traffic_light_config" textfile="$(find tl_detector)/sim_traffic_light_config.yaml" />
     <!-- <param name="traffic_light_config" textfile="$(find tl_detector)/site_traffic_light_config.yaml" /> -->
 
 </launch>
