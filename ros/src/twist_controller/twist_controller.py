@@ -16,7 +16,7 @@ VEL_PID_KP = 0.8
 VEL_PID_KI = 0.0001
 VEL_PID_KD = 0.0000001
 # Trise = 2.2T , say 5sec 10-90% todo: include accel limit. https://en.wikipedia.org/wiki/RC_time_constant
-THROTTLE_LP_TAO =  2.0 / 2.2
+THROTTLE_LP_TAO =  0.5 / 2.2
 THROTTLE_LP_TS = 0.02 # Assuming 50 hz operation 1.0 / 50.0
 
 BRAKE_LP_TAO = 0.1/2.2
