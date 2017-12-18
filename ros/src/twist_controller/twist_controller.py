@@ -29,7 +29,7 @@ THROTTLE_PID_LIMIT_MIN = -1.0 #float('-inf')
 
 CURRENT_FUEL_LEVEL = 100  # Percent full
 
-MAX_brake_FORCE_RATIO = 5
+MAX_brake_FORCE_RATIO = 1
 
 
 
@@ -54,7 +54,7 @@ class TwistController(object):
 
         self.current_vehicle_mass = self.vehicle_mass + (( CURRENT_FUEL_LEVEL / 100) * (self.fuel_capacity * GAS_DENSITY))
         # @Kostas Oreopoulos - carnd slack commennt
-        self.max_brake_force = MAX_brake_FORCE_RATIO * self.vehicle_mass * self.decel_limit * self.wheel_radius
+        self.max_brake_force = abs(MAX_brake_FORCE_RATIO * self.vehicle_mass * self.decel_limit * self.wheel_radius)
 
 
         # 1st implementation of steering is to use provided Yaw Controller.
@@ -118,7 +118,7 @@ class TwistController(object):
 
             #  At breaking, we are generating negative proposed velocity, possible error in waypoint gen while breaking.
             if (proposed_linear_vel < 0.):
-                rospy.logwarn("Proposed liner vel:%f set to zero:", proposed_linear_vel)
+                #rospy.logwarn("Proposed liner vel:%f set to zero:", proposed_linear_vel)
                 proposed_linear_vel = 0
 
             delta_vel = proposed_linear_vel - current_linear_vel
@@ -130,20 +130,26 @@ class TwistController(object):
                 steer = self.yaw_lp.filt(steer_err)
                 #  rospy.logwarn("Yaw:%f : Yaw_lp:%f : P-lin-vel:%f Pre-ang-Vel:%f current-lin-vel:%f",steer_err,steer,proposed_linear_vel,proposed_angular_vel,current_linear_vel)
 
-
+                #rospy.logwarn("Proposed_linear_vel:%f current_velocity:%f", proposed_linear_vel, current_linear_vel)
 
 
                 error = self.throttle_pid.step(delta_vel,dt)
 
                 if (error > 0.0 ):
-                    # Acceleration condition.
-                    throttle = self.throttle_lp.filt(error)
+                    # Acceleration condition. , at proposed vel = 0, we get some small accel in current vel, focce accel to zero for that case.
+                    if proposed_linear_vel == 0. :
+                       throttle = 0.
+                    else:
+                       throttle = self.throttle_lp.filt(error)
                     self.brake_lp.set(0.) #  While we are accelerating set the brake lp to zero.
                 else:
                     throttle = 0.0
                     # use linear map from pid to brake force range. error 0 to -1/
                     brake_force = abs(error) * self.max_brake_force
                     brake = self.brake_lp.filt(brake_force)
+                    #rospy.logwarn("BRAKING: BF:%f Brake:%f Error:%f abs_error:%f max_bf:%f proposed_linear_vel:%f",
+                    #brake_force, brake, error,abs(error), self.max_brake_force ,proposed_linear_vel)
+
 
                     #Need to apply final presure as error gets too small, we creep along.
                     if (brake <= self.brake_deadband * 5):

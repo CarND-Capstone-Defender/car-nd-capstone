@@ -27,9 +27,9 @@ class TLDetector(object):
         rely on the position of the light and the camera image to predict it.
         '''
 
-        # specifies a rate which images shall be used in order to 
+        # specifies a rate which images shall be used in order to
         # deal with long detection time in the neural network
-        # example: 
+        # example:
         #   1 = every frame is taken
         #   2 = only every second frame is taken
         #   3 = only every third frame is taken
@@ -82,32 +82,32 @@ class TLDetector(object):
 
     def getMode(self):
         speed_limit = rospy.get_param('/waypoint_loader/velocity') * 1000 / 3600. # m/s
-       
+
         # CARLA track has speed limit 10
         if (speed_limit > 10):
             # assume we are in simulator mode
             rospy.logdebug("Speed limit < 10 - assuming simulator mode")
-            mode = "SIM" 
+            mode = "SIM"
         else:
             # assume we are in Carla mode - but is it simulator churchlot or real drive!?
             is_site_configured = rospy.has_param("/grasshopper_calibration_yaml")
 
             if is_site_configured == False:
                 rospy.logdebug("No grasshopper found - assuming simulator churchlot mode")
-                mode = "SIM_CHURCHLOT" 
+                mode = "SIM_CHURCHLOT"
             else:
                 rospy.logdebug("Grasshopper found - assuming real-drive mode")
-                mode = "CARLA" 
-        
-        rospy.loginfo("Identified mode %s" , mode)        
-        return mode        
+                mode = "CARLA"
+
+        rospy.loginfo("Identified mode %s" , mode)
+        return mode
 
 
     def pose_cb(self, msg):
         if self.fullInitialized == False:
             return
 
-        self.pose = msg 
+        self.pose = msg
         self.vehicle_position = self.get_closest_waypoint(self.pose.pose.position.x ,self.pose.pose.position.y)
         #rospy.logwarn('vehicle_position = %s' , self.vehicle_position)
 
@@ -128,7 +128,7 @@ class TLDetector(object):
 
         rospy.logdebug('Waypoint increasing = %s' , self.waypoints_increasing)
 
-        #ANTONIA: Use these 5 lines in order to test the churchlot in the simulator 
+        #ANTONIA: Use these 5 lines in order to test the churchlot in the simulator
         #         otherwise you won't get the tl_detector and thus the waypoint updater
         #         because in this churchlot mode the simulator doesn't provide images...
         if self.mode == "SIM_CHURCHLOT":
@@ -141,7 +141,7 @@ class TLDetector(object):
     def waypoints_cb(self, lane):
         self.waypoints = lane.waypoints
 
-        # calculate the corresponding waypoints from 
+        # calculate the corresponding waypoints from
         # the traffic light stop line positions
         # NOTE: moved this calculation here because we know that
         #       self.waypoints has been provided (could be asynchronuous !)
@@ -157,7 +157,7 @@ class TLDetector(object):
 
         self.fullInitialized = True
         rospy.loginfo('TL Detector fully initialized')
-        
+
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -177,7 +177,7 @@ class TLDetector(object):
 
         if (self.total_frame_counter % self.FRAME_RATE != 0):
             rospy.logdebug('dropping frame #%s as dropping rate is %s' , self.total_frame_counter , self.FRAME_RATE)
-            return         
+            return
 
         self.has_image = True
         self.camera_image = msg
@@ -189,7 +189,7 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-        if self.last_state != self.state: 
+        if self.last_state != self.state:
             # reset the state counter
             if self.last_state == TrafficLight.YELLOW:
                 self.last_state = self.state
@@ -206,7 +206,7 @@ class TLDetector(object):
             if self.red_counter >= STATE_COUNT_THRESHOLD:
                 # threshold reached!
                 if self.waypoints_increasing == True:
-                    if self.light_wp <= self.last_wp+3 or self.last_wp == -1: 
+                    if self.light_wp <= self.last_wp+3 or self.last_wp == -1:
                         # don't report red in case we already crossed the traffic light stop line !!
                         self.last_wp = self.light_wp
                         rospy.logdebug('WP increasing - finally publishing RED light at waypoint %s' , self.light_wp)
@@ -215,7 +215,7 @@ class TLDetector(object):
                 else:
                     ######################
                     # UDACITY CARLA HACK Start
-                    # Following special treatment is a hack in order to deal 
+                    # Following special treatment is a hack in order to deal
                     # with the high inaccuracy in calculation of nearest waypoint
                     # within the area of waypoint 50...60...0...3
                     ######################
@@ -229,25 +229,25 @@ class TLDetector(object):
                     ######################
                     ## HACK End
                     ######################
-                        
+
                     self.last_wp = self.light_wp
                     rospy.loginfo('WP decreasing - finally publishing RED light at waypoint %s' , self.light_wp)
                     self.publishWaypoint(self.light_wp,self.state)
-                                            
+
 
         elif self.state == TrafficLight.GREEN:
             # reset the red counter --> go!
             #self.FRAME_RATE = 4
             self.red_counter = 0
-            self.last_wp = -1            
+            self.last_wp = -1
             self.last_state = self.state
             rospy.logdebug('Go GREEN - finally publishing RED light at waypoint %s' , -1)
             self.publishWaypoint(-1,self.state)
         elif self.state == TrafficLight.YELLOW:
             # treat yellow as "almost" red..... --> be cautious
             #self.FRAME_RATE = 4
-            self.red_counter += 1   
-            self.last_wp = -1            
+            self.red_counter += 1
+            self.last_wp = -1
             rospy.logdebug('YELLOW occurred now  %s times' , self.red_counter)
             self.last_state = self.state
             rospy.logdebug('Go YELLOW - finally publishing YELLOW light at waypoint %s' , -1)
@@ -274,7 +274,7 @@ class TLDetector(object):
         """
         if self.waypoints is None:
                 return
-        
+
         minDist = 99999
         minIndex = None
 
@@ -284,8 +284,8 @@ class TLDetector(object):
                 wp_y = waypoint.pose.pose.position.y
                 distance = math.sqrt(pow(posx - wp_x,2) + pow(posy - wp_y,2))
 
-                #if we find a closer distance 
-                if (distance < minDist): 
+                #if we find a closer distance
+                if (distance < minDist):
                         minIndex = i          # use this as next closest waypojnt
                         minDist = distance  # use this distance as new closest distance
 
@@ -320,7 +320,7 @@ class TLDetector(object):
 
         # if no traffic stopline has been found car_position must be beyond the last traffic stopline
         # --> "estimate" the distance as the distance to first stopline and wait until
-        #     car_position > 0 again      
+        #     car_position > 0 again
         if waypointUntilNextStopline == -1:
             #rospy.logdebug('END OF TRACK....')
             waypointUntilNextStopline = (len(self.waypoints) - car_position) + self.trafficLightWaypoint[0]
@@ -329,7 +329,7 @@ class TLDetector(object):
         if self.waypoints_increasing == False:
             waypointUntilNextStopline = len(self.waypoints) - waypointUntilNextStopline
 
-            
+
 
         return waypointUntilNextStopline
 
@@ -351,7 +351,7 @@ class TLDetector(object):
             index = len(self.trafficLightWaypoint)-1
             # loop through all traffic light waypoints and get the closest one
             for i in range(len(self.trafficLightWaypoint)):
-                if car_position > self.trafficLightWaypoint[len(self.trafficLightWaypoint) - i - 1]: 
+                if car_position > self.trafficLightWaypoint[len(self.trafficLightWaypoint) - i - 1]:
                     index =  len(self.trafficLightWaypoint) - i - 1
                     break
 
@@ -370,15 +370,15 @@ class TLDetector(object):
         else:
             detectorMsg.state = TrafficLight.UNKNOWN
 
-        if detectorMsg.state == TrafficLight.GREEN:
-            rospy.loginfo('Publishing waypoint %s with color GREEN ' , detectorMsg.waypoint)
-        elif detectorMsg.state == TrafficLight.RED:
-            rospy.loginfo('Publishing waypoint %s with color RED ' , detectorMsg.waypoint)
-        elif detectorMsg.state == TrafficLight.YELLOW:
-            rospy.loginfo('Publishing waypoint %s with color YELLOW ' , detectorMsg.waypoint)
-        elif detectorMsg.state == TrafficLight.UNKNOWN:
-            rospy.loginfo('Publishing waypoint %s with color UNKNOWN ' , detectorMsg.waypoint)
-            
+        #if detectorMsg.state == TrafficLight.GREEN:
+            #rospy.loginfo('Publishing waypoint %s with color GREEN ' , detectorMsg.waypoint)
+        #elif detectorMsg.state == TrafficLight.RED:
+            #rospy.loginfo('Publishing waypoint %s with color RED ' , detectorMsg.waypoint)
+        #elif detectorMsg.state == TrafficLight.YELLOW:
+            #rospy.loginfo('Publishing waypoint %s with color YELLOW ' , detectorMsg.waypoint)
+        #elif detectorMsg.state == TrafficLight.UNKNOWN:
+            #rospy.loginfo('Publishing waypoint %s with color UNKNOWN ' , detectorMsg.waypoint)
+
         self.upcoming_red_light_pub.publish(detectorMsg)
 
 
@@ -401,13 +401,13 @@ class TLDetector(object):
             # 2. in case we are too far away from a traffic light we can also skip TL detection....
             if waypointsToGo > 200:
                 #rospy.loginfo('Shut off TL detection....')
-                return -1, TrafficLight.UNKNOWN    
+                return -1, TrafficLight.UNKNOWN
 
             # 3. Detect the color of the traffic light (if yet visible)
             state = self.get_light_state()
-            
+
             nextTLWaypoint = self.getClosestTrafficLightWaypoint()
-            
+
 
             # Just debug....
             rospy.logdebug('%s waypoints to next TL stopline' , waypointsToGo)
