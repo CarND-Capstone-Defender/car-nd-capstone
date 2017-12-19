@@ -5,11 +5,11 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 ## Team Details
   * Team Name:
     * Defender
-  * Team Lead : Peter Barry : slack @peter.barry
+  * Team Lead : Peter Barry :Udacity: pete.barry@gmail.com :  slack @peter.barry
   * Team Members
-    *  Antonia Reiter   : : Slack @antonia
-    *  Ahmed Zikry   : Slack @zika
-    *  Waqas Malik   : Slack @waqas
+    *  Antonia Reiter   : Udacity: antonia.reiter@gmx.de : Slack @antonia
+    *  Ahmed Zikry   : Udaciy: ahmedzikry89@gmail.com : Slack @zika
+    *  Waqas Malik   : Udacity: malik-waqas@hotmail.com : Slack @waqas
 
 ### Instructions
 ```bash
