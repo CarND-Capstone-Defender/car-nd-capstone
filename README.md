@@ -5,17 +5,16 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 ## Team Details
   * Team Name:
     * Defender
-  * Team Lead : Peter Barry  : slack @peter.barry
+  * Team Lead : Peter Barry : slack @peter.barry
   * Team Members
-    *  Antoina Reiter   : Slack @antonia
-    *  Ahmed Zikry  : Slack @zika
-    *  Waqas Malik  : Slack @waqas
+    *  Antoina Reiter   : : Slack @antonia
+    *  Ahmed Zikry   : Slack @zika
+    *  Waqas Malik   : Slack @waqas
 
-### Instructions to Udacity Carla test team
+### Instructions
 ```bash
  git clone https://github.com/CarND-Capstone-Defender/car-nd-capstone.git
  ```
-
 
  To Build the docker instance ( note we updated some versions of of packages in the requirements.txt)
 
@@ -36,6 +35,40 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 ```bash
   ./runme_site.sh
   ```
+
+### Stadard  Installation wihhout startup scripts.
+  [Install Docker](https://docs.docker.com/engine/installation/)
+
+  Build the docker container
+  ```bash
+  sudo docker build . -t capstone
+  ```
+
+  Run the docker file
+  ```bash
+  docker run -p 4567:4567 -v $PWD:/capstone -v /tmp/log:/root/.ros/ --rm -it capstone
+  ```
+
+  ### Usage
+
+  1. Clone the project repository
+  ```bash
+  git clone https://github.com/CarND-Capstone-Defender/car-nd-capstone.git
+  ```
+
+  2. Install python dependencies
+  ```bash
+  cd CarND-Capstone
+  pip install -r requirements.txt
+  ```
+  3. Make and run styx
+  ```bash
+  cd ros
+  catkin_make
+  source devel/setup.sh
+  roslaunch launch/styx.launch
+  ```
+  4. Run the simulator
 
 
 ### Simulator Installation
