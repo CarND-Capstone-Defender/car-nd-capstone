@@ -82,6 +82,8 @@ class DBWNode(object):
                 proposed_linear_vel = self.latest_twist_msg.twist.linear.x
                 proposed_angular_vel = self.latest_twist_msg.twist.angular.z
                 current_linear_vel = self.latest_current_velocity_msg.twist.linear.x
+                #if current_linear_vel < 0.001 :
+                #    current_linear_vel = 0.
 
                 throttle, brake, steer = self.controller.control(proposed_linear_vel,
                                                                 proposed_angular_vel,
@@ -96,6 +98,9 @@ class DBWNode(object):
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
+
+        #rospy.logwarn(" Throttle:%f : brake:%f Steer:%f ",throttle,brake,steer)
+
         tcmd = ThrottleCmd()
         tcmd.enable = True
         tcmd.pedal_cmd_type = ThrottleCmd.CMD_PERCENT
