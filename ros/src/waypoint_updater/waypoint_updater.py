@@ -49,15 +49,14 @@ class WaypointUpdater(object):
 
         self.mode = self.getMode()
 
-        # CARLA track has speed limit 10
         if self.mode == "SIM":
             self.waypoints_increasing = True
-            self.STOPLINE_BRAKING_BUFFER = 1.0 # TODO: this has to be tuned eventually..
-            self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
+            self.STOPLINE_BRAKING_BUFFER = 1 # TODO: this has to be tuned eventually..
+            self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.25 # this is just a heuristic factor.....feel free to play around
         else:
             self.waypoints_increasing = True #TODO: Antonia: verify whether this is really the case!
-            self.STOPLINE_BRAKING_BUFFER = 0.5 # TODO: this has to be tuned eventually..
-            self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.12 # this is just a heuristic factor.....feel free to play around
+            self.STOPLINE_BRAKING_BUFFER = 1 # TODO: this has to be tuned eventually..
+            self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.25 # this is just a heuristic factor.....feel free to play around
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
@@ -72,8 +71,6 @@ class WaypointUpdater(object):
         self.tl_detector_running = False
 
         self.latest_current_velocity_msg = None
-
-        self.adaptiveBrakeFactor = 1.0
 
         self.cycleCounter = 0
 
@@ -317,39 +314,32 @@ class WaypointUpdater(object):
                     else:
                         current_vel = self.latest_current_velocity_msg.twist.linear.x
 
-                    #brakingDistance = abs(current_vel*current_vel / (2 * (abs(self.deceleration_limit) - 0.5)))
-                    #if brakingDistance/dist > ADAPTIVE_BRAKE_THRESHOLD:
-                    #    if (self.adaptiveBrakeFactor > 0.8):
-                    #        self.adaptiveBrakeFactor = self.adaptiveBrakeFactor - ADAPTIVE_BRAKE_INCREMENT
-                        #self.adaptiveBrakeFactor = 0.9
-                    #    rospy.logwarn("Increase braking power, adaptiveBrakeFactor = %s" , self.adaptiveBrakeFactor)
-
-                    #new_vel = math.sqrt(current_vel - 1.1  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
                     a  = current_vel*current_vel/(2*self.distance_to_light)  # http://www.kfz-tech.de/Biblio/Formelsammlung/Bremsweg.htm
-                    #a = a/20 # 50ms is update rate  #TODO: Antonia: this is too weak for some reasons.....
                     #rospy.logwarn("a = %s" , a)
-                    new_vel = (current_vel - a) * self.adaptiveBrakeFactor
-                    new_vel = min(new_vel,self.speed_limit) # don't exceed max speed
-                    new_vel = max(new_vel,0) # don't provide negative speed
+                    new_vel = (current_vel - a) 
 
                     # ensure a smooth approach until the stopline
                     if self.distance_to_light < self.STOPLINE_BRAKING_BUFFER:
-                        wp.twist.twist.linear.x = 0
+                        wp.twist.twist.linear.x = 0.0
                     else:
                         wp.twist.twist.linear.x = max(new_vel,
                                                   abs(self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR * (self.distance_to_light - self.STOPLINE_BRAKING_BUFFER)))
 
                     # For stoping cases, set a min speed, else we creep to red light.
                     if wp.twist.twist.linear.x < MIN_STOPPING_SPEED :
-                        wp.twist.twist.linear.x = 0.
+                        wp.twist.twist.linear.x = 0.0
 
                         #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
                 else:
-                    wp.twist.twist.linear.x = self.speed_limit #TODO: Antonia: this is pretty slow acceleration for some reason.....
-                    self.adaptiveBrakeFactor = 1.0  #reset the adaptive brake factor
+                    wp.twist.twist.linear.x = self.speed_limit  
+
+                wp.twist.twist.linear.x = min(wp.twist.twist.linear.x,self.speed_limit) # don't exceed max speed
+                wp.twist.twist.linear.x = max(wp.twist.twist.linear.x,0.0) # don't provide negative speed
 
                 #if (self.cycleCounter % 50 == 0):
-                    #rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
+                #    rospy.logwarn("Setting target-speed = %s" , wp.twist.twist.linear.x)
+ 
+
                 self.final_way.waypoints.append(wp)
 
             #rospy.logwarn("Publish Waypoints: %s", self.final_way.waypoints[0])
