@@ -51,11 +51,11 @@ class WaypointUpdater(object):
 
         if self.mode == "SIM":
             self.waypoints_increasing = True
-            self.STOPLINE_BRAKING_BUFFER = 1 # TODO: this has to be tuned eventually..
+            self.STOPLINE_BRAKING_BUFFER = 1.0 # TODO: this has to be tuned eventually..
             self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.25 # this is just a heuristic factor.....feel free to play around
         else:
             self.waypoints_increasing = True #TODO: Antonia: verify whether this is really the case!
-            self.STOPLINE_BRAKING_BUFFER = 1 # TODO: this has to be tuned eventually..
+            self.STOPLINE_BRAKING_BUFFER = 1.0 # TODO: this has to be tuned eventually..
             self.SMOOTH_APPROACH_TO_STOPLINE_FACTOR = 0.25 # this is just a heuristic factor.....feel free to play around
 
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
