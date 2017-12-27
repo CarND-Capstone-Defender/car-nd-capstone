@@ -201,7 +201,7 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-find_package(OpenCV 3)
-include_directories(${OpenCV_INCLUDE_DIRS})
-add_executable (showimage ${PROJECT_SOURCE_DIR}/showimage/main.cpp)
-target_link_libraries (showimage ${catkin_LIBRARIES} ${OpenCV_LIBS}  )
+# find_package(OpenCV 3)
+# include_directories(${OpenCV_INCLUDE_DIRS})
+# add_executable (showimage ${PROJECT_SOURCE_DIR}/showimage/main.cpp)
+# target_link_libraries (showimage ${catkin_LIBRARIES} ${OpenCV_LIBS}  )
