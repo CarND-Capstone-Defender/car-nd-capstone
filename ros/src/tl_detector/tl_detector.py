@@ -219,13 +219,13 @@ class TLDetector(object):
                     # with the high inaccuracy in calculation of nearest waypoint
                     # within the area of waypoint 50...60...0...3
                     ######################
-                    if self.mode == "CARLA" and (self.vehicle_position > 51 or self.vehicle_position <3):
-                        self.last_wp = self.light_wp
-                        #rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
-                        rospy.logdebug('CARLA HACK: Finally publishing RED light at waypoint %s' , self.light_wp)
-                        #self.upcoming_red_light_pub.publish(Int32(0))
-                        self.publishWaypoint(self.light_wp,self.state)
-                        return
+                    #if self.mode == "CARLA" and (self.vehicle_position > 51 or self.vehicle_position <3):
+                       # self.last_wp = self.light_wp
+                       # #rospy.loginfo('Finally publishing RED light in %s waypoints' , 0)
+                       # rospy.logdebug('CARLA HACK: Finally publishing RED light at waypoint %s' , self.light_wp)
+                       # #self.upcoming_red_light_pub.publish(Int32(0))
+                       # self.publishWaypoint(self.light_wp,self.state)
+                       # return
                     ######################
                     ## HACK End
                     ######################
