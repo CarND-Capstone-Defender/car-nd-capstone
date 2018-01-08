@@ -157,7 +157,8 @@ class WaypointUpdater(object):
         #dist = self.distance(self.base_way.waypoints , self.get_closest_point() ,self.tl_waypoint_index)
         #rospy.loginfo("Car Pos = %s", self.get_closest_point() )
         #rospy.logwarn("TL Pos = %s", self.tl_waypoint_index )
-        #rospy.loginfo("Distance to next TL = %s", self.distance_to_light )
+        rospy.loginfo("Distance to next TL = %s", self.distance_to_light )
+        rospy.loginfo("State of the next TL = %s", self.next_tl_state )
         #rospy.logwarn("DIST to next TL = %s", dist)
         #rospy.logwarn("Current Pose: Point x:%d y:%d z:%d",c.x,c.y,c.z)
         #rospy.logwarn("Traffic Msg Rx:Light: %d Way Point id: %d",msg.state, msg.waypoint)
@@ -282,7 +283,7 @@ class WaypointUpdater(object):
             else:
                 self.stopping = False
 
-
+            rospy.loginfo("Stopping from Waypoint updater = %s", self.stopping )
 
             #########################################################
             # 2. Calculate the next waypoints

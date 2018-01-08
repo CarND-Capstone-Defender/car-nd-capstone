@@ -93,6 +93,7 @@ class TLClassifier(object):
                 mode = "CARLA" 
         
         rospy.logdebug("Identified mode %s" , mode)        
+        rospy.loginfo("Identified mode %s" , mode)
         return mode        
                
 
@@ -182,6 +183,7 @@ class TLClassifier(object):
                     diagonal = math.sqrt(perceived_width_x*perceived_width_y)
                     rospy.logdebug('TL_Classifier: Color = %s  , Probability = %s' , class_name , round(scores[i],2))
                     rospy.logdebug('TL_Classifier: Diagonal of Bounding box = %s' , round(diagonal,0))
+                    rospy.loginfo("Detected Class = %s", class_name )
 
 
                     # immediately return the detection with the highest score
